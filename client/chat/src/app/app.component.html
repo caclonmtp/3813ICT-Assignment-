@@ -1,0 +1,14 @@
+<nav style="display:flex; gap:1rem; padding:0.75rem; border-bottom:1px solid #ddd; align-items:center;">
+  <a routerLink="/groups"><strong>Phase-1 Chat</strong></a>
+  <span style="flex:1"></span>
+  <ng-container *ngIf="session.currentUser(); else guest">
+    <span>
+      Hi, {{ session.currentUser()?.username }}
+      ({{ (session.currentUser()?.roles || []).join(', ') }})
+    </span>
+    <button (click)="session.logout()" style="margin-left:1rem">Logout</button>
+  </ng-container>
+  <ng-template #guest><a routerLink="/login">Login</a></ng-template>
+</nav>
+
+<router-outlet></router-outlet>

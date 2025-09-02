@@ -1,0 +1,38 @@
+<div style="max-width:900px; margin:1rem auto;">
+    <h2>Groups</h2>
+  
+    <div *ngIf="rbac.canCreateGroup()" style="display:flex; gap:0.5rem; margin:0.5rem 0;">
+      <input [(ngModel)]="name" placeholder="New group name" />
+      <button (click)="createGroup()">Create Group</button>
+    </div>
+  
+    <table border="1" cellpadding="6" cellspacing="0" style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr><th>Name</th><th>Channels</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let g of groups">
+          <td>
+            <strong>{{ g.name }}</strong>
+            <small *ngIf="rbac.isGroupOwner(g)"> (owner)</small>
+          </td>
+          <td>
+            <div *ngIf="!g.channelIds.length">—</div>
+            <div style="display:flex; flex-wrap:wrap; gap:0.5rem;" *ngIf="g.channelIds.length">
+              <a *ngFor="let cid of g.channelIds"
+                 [routerLink]="['/groups', g.id, 'channels', cid]"
+                 style="cursor:pointer; text-decoration:underline;">
+                {{ channelName(cid) }}
+              </a>
+            </div>
+          </td>
+          <td style="white-space:nowrap;">
+            <button *ngIf="!myMember(g)" (click)="join(g)">Join</button>
+            <button *ngIf="myMember(g)" (click)="leave(g)">Leave</button>
+            <button *ngIf="rbac.isGroupOwner(g)" (click)="createChannel(g)">New Channel</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  
