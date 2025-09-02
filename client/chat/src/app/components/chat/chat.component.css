@@ -1,0 +1,266 @@
+.chat-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #f5f7fa;
+}
+
+.chat-header {
+    background: white;
+    padding: 15px 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.btn-back {
+    background: transparent;
+    border: 1px solid #ddd;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: #666;
+    transition: all 0.3s;
+}
+
+.btn-back:hover {
+    background: #f5f7fa;
+    color: #333;
+}
+
+.channel-info {
+    flex: 1;
+    text-align: center;
+}
+
+.channel-info h2 {
+    margin: 0;
+    color: #333;
+    font-size: 20px;
+}
+
+.member-count {
+    color: #999;
+    font-size: 14px;
+}
+
+.header-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn-info {
+    background: transparent;
+    border: 1px solid #ddd;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.chat-body {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.chat-sidebar {
+    width: 240px;
+    background: white;
+    border-right: 1px solid #e1e4e8;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.chat-sidebar h3 {
+    color: #333;
+    margin-bottom: 15px;
+    font-size: 16px;
+}
+
+.members-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.member-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.member-avatar {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.member-info {
+    flex: 1;
+}
+
+.member-name {
+    display: block;
+    color: #333;
+    font-size: 14px;
+}
+
+.member-role {
+    display: block;
+    color: #999;
+    font-size: 12px;
+}
+
+.chat-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: white;
+}
+
+.messages-container {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.no-messages {
+    text-align: center;
+    color: #999;
+    padding: 40px;
+}
+
+.message {
+    display: flex;
+    gap: 12px;
+    animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message.own-message {
+    flex-direction: row-reverse;
+}
+
+.message.own-message .message-content {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.message.own-message .message-header {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.message.own-message .message-time {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.message-avatar {
+    width: 36px;
+    height: 36px;
+    background: #f0f2f5;
+    color: #666;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.message-content {
+    max-width: 70%;
+    background: #f0f2f5;
+    padding: 10px 15px;
+    border-radius: 12px;
+}
+
+.message-header {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 5px;
+    font-size: 12px;
+}
+
+.message-author {
+    font-weight: 600;
+    color: #666;
+}
+
+.message-time {
+    color: #999;
+}
+
+.message-text {
+    color: #333;
+    line-height: 1.4;
+    word-wrap: break-word;
+}
+
+.message-input-container {
+    padding: 20px;
+    background: white;
+    border-top: 1px solid #e1e4e8;
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+}
+
+.message-input {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    resize: none;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.message-input:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.btn-send {
+    padding: 12px 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.btn-send:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.btn-send:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}

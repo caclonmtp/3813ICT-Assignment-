@@ -1,0 +1,248 @@
+.dashboard-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #f5f7fa;
+}
+
+.navbar {
+    background: white;
+    padding: 15px 30px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.navbar-brand h2 {
+    color: #333;
+    margin: 0;
+    font-size: 24px;
+}
+
+.navbar-user {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.username {
+    font-weight: 500;
+    color: #555;
+}
+
+.user-roles {
+    display: flex;
+    gap: 8px;
+}
+
+.role-badge {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.navbar-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.btn-admin {
+    background: #667eea;
+    color: white;
+}
+
+.btn-admin:hover {
+    background: #5a67d8;
+    transform: translateY(-1px);
+}
+
+.btn-logout {
+    background: #dc3545;
+    color: white;
+}
+
+.btn-logout:hover {
+    background: #c82333;
+}
+
+.dashboard-content {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+}
+
+.sidebar {
+    width: 280px;
+    background: white;
+    padding: 20px;
+    border-right: 1px solid #e1e4e8;
+    overflow-y: auto;
+}
+
+.sidebar h3 {
+    color: #333;
+    margin-bottom: 20px;
+    font-size: 18px;
+}
+
+.groups-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.group-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.group-item:hover {
+    background: #f5f7fa;
+}
+
+.group-item.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.group-icon {
+    font-size: 20px;
+}
+
+.no-groups {
+    text-align: center;
+    padding: 30px 10px;
+    color: #999;
+}
+
+.no-groups p {
+    margin-bottom: 10px;
+}
+
+.main-content {
+    flex: 1;
+    padding: 30px;
+    overflow-y: auto;
+}
+
+.channels-section h2 {
+    color: #333;
+    margin-bottom: 25px;
+}
+
+.channels-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.channel-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.channel-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+}
+
+.channel-icon {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    font-size: 24px;
+    font-weight: bold;
+}
+
+.channel-info h4 {
+    color: #333;
+    margin: 0 0 5px 0;
+}
+
+.channel-info p {
+    color: #999;
+    margin: 0;
+    font-size: 14px;
+}
+
+.no-channels {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 40px;
+    color: #999;
+}
+
+.welcome-message {
+    text-align: center;
+    padding: 40px;
+}
+
+.welcome-message h2 {
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.welcome-message p {
+    color: #666;
+    margin-bottom: 40px;
+}
+
+.features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.feature {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.feature i {
+    font-size: 48px;
+    margin-bottom: 15px;
+    display: block;
+}
+
+.feature h4 {
+    color: #333;
+    margin-bottom: 10px;
+}
+
+.feature p {
+    color: #666;
+    font-size: 14px;
+}

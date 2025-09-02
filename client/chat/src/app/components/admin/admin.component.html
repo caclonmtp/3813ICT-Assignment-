@@ -1,0 +1,102 @@
+<div class="admin-container">
+    <header class="admin-header">
+        <h1>Super Admin Panel</h1>
+        <a routerLink="/dashboard" class="btn-back">← Back to Dashboard</a>
+    </header>
+
+    <div class="admin-content">
+        <div class="admin-section">
+            <h2>User Management</h2>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Roles</th>
+                            <th>Groups</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let user of users" 
+                            [class.selected]="selectedUser?.id === user.id"
+                            (click)="selectUser(user)">
+                            <td>{{ user.username }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                <span *ngFor="let role of user.roles" class="badge">
+                                    {{ role }}
+                                </span>
+                            </td>
+                            <td>{{ user.groups.length }} groups</td>
+                            <td class="actions">
+                                <button *ngIf="!user.roles.includes('group-admin')" 
+                                        (click)="promoteToGroupAdmin(user.id); $event.stopPropagation()"
+                                        class="btn btn-sm btn-primary">
+                                    Promote to Group Admin
+                                </button>
+                                <button *ngIf="!user.roles.includes('super-admin')" 
+                                        (click)="promoteToSuperAdmin(user.id); $event.stopPropagation()"
+                                        class="btn btn-sm btn-success">
+                                    Promote to Super Admin
+                                </button>
+                                <button (click)="deleteUser(user.id); $event.stopPropagation()"
+                                        class="btn btn-sm btn-danger">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="admin-section">
+            <h2>Group Management</h2>
+            <div class="data-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Group Name</th>
+                            <th>Created By</th>
+                            <th>Members</th>
+                            <th>Admins</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr *ngFor="let group of groups" 
+                            [class.selected]="selectedGroup?.id === group.id"
+                            (click)="selectGroup(group)">
+                            <td>{{ group.name }}</td>
+                            <td>{{ group.createdBy }}</td>
+                            <td>{{ group.members.length }} members</td>
+                            <td>{{ group.admins.length }} admins</td>
+                            <td class="actions">
+                                <button (click)="deleteGroup(group.id); $event.stopPropagation()"
+                                        class="btn btn-sm btn-danger">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div *ngIf="selectedUser && selectedGroup" class="admin-section">
+            <h2>Quick Actions</h2>
+            <div class="quick-actions">
+                <button (click)="addUserToGroup(selectedUser.id, selectedGroup.id)" 
+                        class="btn btn-primary">
+                    Add {{ selectedUser.username }} to {{ selectedGroup.name }}
+                </button>
+                <button (click)="removeUserFromGroup(selectedUser.id, selectedGroup.id)" 
+                        class="btn btn-warning">
+                    Remove {{ selectedUser.username }} from {{ selectedGroup.name }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,87 @@
+<div class="login-container">
+    <div class="login-card">
+        <h1 class="app-title">Chat Application</h1>
+        
+        <div class="form-container" *ngIf="!isRegistering">
+            <h2>Login</h2>
+            <form [formGroup]="loginForm" (ngSubmit)="onLogin()">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        formControlName="username" 
+                        class="form-control"
+                        placeholder="Enter username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        formControlName="password" 
+                        class="form-control"
+                        placeholder="Enter password">
+                </div>
+                
+                <div *ngIf="error" class="error-message">{{ error }}</div>
+                
+                <button type="submit" class="btn btn-primary" [disabled]="loginForm.invalid">
+                    Login
+                </button>
+            </form>
+            
+            <p class="switch-mode">
+                Don't have an account? 
+                <a (click)="toggleMode()">Register here</a>
+            </p>
+        </div>
+        
+        <div class="form-container" *ngIf="isRegistering">
+            <h2>Register</h2>
+            <form [formGroup]="registerForm" (ngSubmit)="onRegister()">
+                <div class="form-group">
+                    <label for="reg-username">Username</label>
+                    <input 
+                        type="text" 
+                        id="reg-username" 
+                        formControlName="username" 
+                        class="form-control"
+                        placeholder="Choose a username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input 
+                        type="email" 
+                        id="email" 
+                        formControlName="email" 
+                        class="form-control"
+                        placeholder="Enter your email">
+                </div>
+                
+                <div class="form-group">
+                    <label for="reg-password">Password</label>
+                    <input 
+                        type="password" 
+                        id="reg-password" 
+                        formControlName="password" 
+                        class="form-control"
+                        placeholder="Choose a password">
+                </div>
+                
+                <div *ngIf="error" class="error-message">{{ error }}</div>
+                
+                <button type="submit" class="btn btn-primary" [disabled]="registerForm.invalid">
+                    Register
+                </button>
+            </form>
+            
+            <p class="switch-mode">
+                Already have an account? 
+                <a (click)="toggleMode()">Login here</a>
+            </p>
+        </div>
+    </div>
+</div>

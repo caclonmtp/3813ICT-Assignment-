@@ -1,0 +1,152 @@
+<div class="group-admin-container">
+    <header class="admin-header">
+        <h1>Group Administration</h1>
+        <a routerLink="/dashboard" class="btn-back">← Back to Dashboard</a>
+    </header>
+
+    <div class="admin-content">
+        <div class="groups-panel">
+            <div class="panel-header">
+                <h2>My Groups</h2>
+                <button (click)="showCreateGroup = true" class="btn btn-primary">
+                    + New Group
+                </button>
+            </div>
+            
+            <div class="groups-list">
+                <div *ngFor="let group of myGroups" 
+                     class="group-card"
+                     [class.selected]="selectedGroup?.id === group.id"
+                     (click)="selectGroup(group)">
+                    <div class="group-card-header">
+                        <h3>{{ group.name }}</h3>
+                        <span class="member-count">{{ group.members.length }} members</span>
+                    </div>
+                    <div class="group-card-meta">
+                        <span *ngIf="group.createdBy === currentUser?.id" class="badge">Owner</span>
+                        <span *ngIf="group.admins.includes(currentUser?.id || '')" class="badge">Admin</span>
+                    </div>
+                </div>
+                
+                <div *ngIf="myGroups.length === 0" class="empty-state">
+                    <p>You don't administer any groups yet.</p>
+                    <small>Create your first group to get started!</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="details-panel" *ngIf="selectedGroup">
+            <div class="panel-header">
+                <h2>{{ selectedGroup.name }}</h2>
+                <button *ngIf="canDeleteGroup(selectedGroup)" 
+                        (click)="deleteGroup(selectedGroup.id)" 
+                        class="btn btn-danger">
+                    Delete Group
+                </button>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h3>Channels</h3>
+                    <button (click)="showCreateChannel = true" class="btn btn-sm btn-primary">
+                        + Add Channel
+                    </button>
+                </div>
+                
+                <div class="channels-list">
+                    <div *ngFor="let channel of groupChannels" class="channel-item">
+                        <span class="channel-name"># {{ channel.name }}</span>
+                        <button (click)="deleteChannel(channel.id)" class="btn-delete">×</button>
+                    </div>
+                    <div *ngIf="groupChannels.length === 0" class="empty-message">
+                        No channels yet. Create one to start chatting!
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-header">
+                    <h3>Members</h3>
+                    <button (click)="showAddMember = true" class="btn btn-sm btn-primary">
+                        + Add Member
+                    </button>
+                </div>
+                
+                <div class="members-list">
+                    <div *ngFor="let member of groupMembers" class="member-item">
+                        <div class="member-info">
+                            <span class="member-name">{{ member.username }}</span>
+                            <span class="member-email">{{ member.email }}</span>
+                        </div>
+                        <button *ngIf="member.id !== currentUser?.id" 
+                                (click)="removeMemberFromGroup(member.id)" 
+                                class="btn btn-sm btn-danger">
+                            Remove
+                        </button>
+                    </div>
+                    <div *ngIf="groupMembers.length === 0" class="empty-message">
+                        No members in this group yet.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="details-panel" *ngIf="!selectedGroup">
+            <div class="empty-state">
+                <h2>Select a Group</h2>
+                <p>Choose a group from the left panel to manage its channels and members.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Group Modal -->
+    <div class="modal" *ngIf="showCreateGroup">
+        <div class="modal-content">
+            <h2>Create New Group</h2>
+            <input type="text" 
+                   [(ngModel)]="newGroupName" 
+                   placeholder="Enter group name"
+                   class="form-control">
+            <div class="modal-actions">
+                <button (click)="showCreateGroup = false" class="btn btn-secondary">Cancel</button>
+                <button (click)="createGroup()" class="btn btn-primary">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Channel Modal -->
+    <div class="modal" *ngIf="showCreateChannel">
+        <div class="modal-content">
+            <h2>Create New Channel</h2>
+            <input type="text" 
+                   [(ngModel)]="newChannelName" 
+                   placeholder="Enter channel name"
+                   class="form-control">
+            <div class="modal-actions">
+                <button (click)="showCreateChannel = false" class="btn btn-secondary">Cancel</button>
+                <button (click)="createChannel()" class="btn btn-primary">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Member Modal -->
+    <div class="modal" *ngIf="showAddMember">
+        <div class="modal-content">
+            <h2>Add Member to Group</h2>
+            <div class="users-list">
+                <div *ngFor="let user of availableUsers" class="user-option">
+                    <span>{{ user.username }} ({{ user.email }})</span>
+                    <button (click)="addMemberToGroup(user.id)" class="btn btn-sm btn-primary">
+                        Add
+                    </button>
+                </div>
+                <div *ngIf="availableUsers.length === 0" class="empty-message">
+                    All users are already members of this group.
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button (click)="showAddMember = false" class="btn btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+</div>

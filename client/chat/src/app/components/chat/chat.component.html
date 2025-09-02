@@ -1,0 +1,72 @@
+<div class="chat-container">
+    <div class="chat-header">
+        <button class="btn-back" (click)="backToDashboard()">
+            ← Back
+        </button>
+        <div class="channel-info">
+            <h2>{{ groupName }} / #{{ channelName }}</h2>
+            <span class="member-count">{{ groupMembers.length }} members</span>
+        </div>
+        <div class="header-actions">
+            <button class="btn-info">ℹ️ Info</button>
+        </div>
+    </div>
+
+    <div class="chat-body">
+        <div class="chat-sidebar">
+            <h3>Members</h3>
+            <div class="members-list">
+                <div *ngFor="let member of groupMembers" class="member-item">
+                    <div class="member-avatar">
+                        {{ member.username.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="member-info">
+                        <span class="member-name">{{ member.username }}</span>
+                        <span *ngIf="member.roles.includes('super-admin')" class="member-role">
+                            Super Admin
+                        </span>
+                        <span *ngIf="member.roles.includes('group-admin') && !member.roles.includes('super-admin')" class="member-role">
+                            Group Admin
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-main">
+            <div class="messages-container">
+                <div *ngIf="messages.length === 0" class="no-messages">
+                    <p>No messages yet. Start the conversation!</p>
+                </div>
+                
+                <div *ngFor="let message of messages" 
+                     class="message"
+                     [class.own-message]="message.userId === currentUser?.id">
+                    <div class="message-avatar">
+                        {{ message.username.charAt(0).toUpperCase() }}
+                    </div>
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-author">{{ message.username }}</span>
+                            <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+                        </div>
+                        <div class="message-text">{{ message.content }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="message-input-container">
+                <textarea 
+                    [(ngModel)]="newMessage"
+                    (keypress)="handleKeyPress($event)"
+                    placeholder="Type a message..."
+                    class="message-input"
+                    rows="2">
+                </textarea>
+                <button (click)="sendMessage()" class="btn-send" [disabled]="!newMessage.trim()">
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

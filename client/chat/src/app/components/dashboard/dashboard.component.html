@@ -1,0 +1,87 @@
+<div class="dashboard-container">
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <h2>Chat Application</h2>
+        </div>
+        <div class="navbar-user">
+            <span class="username">Welcome, {{ currentUser?.username }}</span>
+            <div class="user-roles">
+                <span *ngFor="let role of currentUser?.roles" class="role-badge">
+                    {{ role }}
+                </span>
+            </div>
+            <div class="navbar-actions">
+                <button *ngIf="isSuperAdmin" (click)="goToAdmin()" class="btn btn-admin">
+                    Super Admin Panel
+                </button>
+                <button *ngIf="isGroupAdmin" (click)="goToGroupAdmin()" class="btn btn-admin">
+                    Group Admin Panel
+                </button>
+                <button (click)="logout()" class="btn btn-logout">Logout</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-content">
+        <div class="sidebar">
+            <h3>My Groups</h3>
+            <div class="groups-list">
+                <div *ngFor="let group of groups" 
+                     class="group-item"
+                     [class.active]="selectedGroup?.id === group.id"
+                     (click)="selectGroup(group)">
+                    <i class="group-icon">👥</i>
+                    <span>{{ group.name }}</span>
+                </div>
+                <div *ngIf="groups.length === 0" class="no-groups">
+                    <p>You're not a member of any groups yet.</p>
+                    <small>Ask a group admin to add you to a group.</small>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div *ngIf="selectedGroup" class="channels-section">
+                <h2>{{ selectedGroup.name }} - Channels</h2>
+                <div class="channels-grid">
+                    <div *ngFor="let channel of channels[selectedGroup.id]" 
+                         class="channel-card"
+                         (click)="enterChannel(selectedGroup.id, channel.id)">
+                        <div class="channel-icon">#</div>
+                        <div class="channel-info">
+                            <h4>{{ channel.name }}</h4>
+                            <p>Click to enter channel</p>
+                        </div>
+                    </div>
+                    <div *ngIf="!channels[selectedGroup.id] || channels[selectedGroup.id].length === 0" 
+                         class="no-channels">
+                        <p>No channels available in this group.</p>
+                        <small>Group admins can create channels.</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div *ngIf="!selectedGroup" class="welcome-message">
+                <h2>Welcome to Chat Application</h2>
+                <p>Select a group from the sidebar to view available channels.</p>
+                <div class="features">
+                    <div class="feature">
+                        <i>💬</i>
+                        <h4>Real-time Chat</h4>
+                        <p>Communicate instantly with group members</p>
+                    </div>
+                    <div class="feature">
+                        <i>👥</i>
+                        <h4>Group Management</h4>
+                        <p>Organize conversations in groups and channels</p>
+                    </div>
+                    <div class="feature">
+                        <i>🔐</i>
+                        <h4>Role-based Access</h4>
+                        <p>Secure permissions system for users</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
