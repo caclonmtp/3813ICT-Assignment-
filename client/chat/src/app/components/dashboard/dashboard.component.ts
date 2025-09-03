@@ -6,9 +6,16 @@ import { User } from '../../models/user.model';
 import { Group } from '../../models/group.model';
 import { Channel } from '../../models/channel.model';
 import { HttpClient } from '@angular/common/http';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ConfirmService } from '../../services/confirm.service';
+import { NotifyService } from '../../services/notify.service';
+
 
 @Component({
     selector: 'app-dashboard',
+    standalone: true,
+    imports: [CommonModule, FormsModule],
     templateUrl: './dashboard.component.html',
     styleUrls: ['./dashboard.component.css']
 })
@@ -22,7 +29,9 @@ export class DashboardComponent implements OnInit {
         private authService: AuthService,
         private groupService: GroupService,
         private router: Router,
-        private http: HttpClient
+        private http: HttpClient,
+        private confirm: ConfirmService,
+        private notify: NotifyService
     ) {}
 
     ngOnInit(): void {
@@ -74,8 +83,11 @@ export class DashboardComponent implements OnInit {
         }
     }
 
-    logout(): void {
+    async logout(): Promise<void> {
+        const ok = await this.confirm.ask('Are you sure you want to logout?', 'Confirm Logout');
+        if (!ok) return;
         this.authService.logout();
+        this.notify.info('Logged out');
         this.router.navigate(['/login']);
     }
 

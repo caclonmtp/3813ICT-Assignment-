@@ -4,7 +4,7 @@
         
         <div class="form-container" *ngIf="!isRegistering">
             <h2>Login</h2>
-            <form [formGroup]="loginForm" (ngSubmit)="onLogin()">
+            <form [formGroup]="loginForm" (ngSubmit)="onLogin()" (keydown.enter)="onLogin()">
                 <div class="form-group">
                     <label for="username">Username</label>
                     <input 
@@ -40,7 +40,7 @@
         
         <div class="form-container" *ngIf="isRegistering">
             <h2>Register</h2>
-            <form [formGroup]="registerForm" (ngSubmit)="onRegister()">
+            <form [formGroup]="registerForm" (ngSubmit)="onRegister()" (keydown.enter)="onRegister()">
                 <div class="form-group">
                     <label for="reg-username">Username</label>
                     <input 

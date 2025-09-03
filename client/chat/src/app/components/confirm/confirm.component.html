@@ -1,0 +1,12 @@
+<ng-container *ngIf="(state$ | async) as st">
+  <div class="confirm-overlay">
+    <div class="confirm-card" role="dialog" aria-labelledby="confirmTitle">
+      <h3 id="confirmTitle">{{ st?.title || 'Please Confirm' }}</h3>
+      <p class="confirm-message">{{ st?.message }}</p>
+      <div class="confirm-actions">
+        <button class="btn btn-secondary" (click)="cancel()">Cancel</button>
+        <button class="btn btn-primary" (click)="accept()">Confirm</button>
+      </div>
+    </div>
+  </div>
+</ng-container>

@@ -1,111 +1,103 @@
 const express = require('express');
+const { readDB, writeDB, genId } = require('../lib/db');
+const { requireUser, isSuper, isGroupAdmin } = require('../middleware/auth');
+
 const router = express.Router();
-const storage = require('../data/storage');
 
-// Get all groups
+router.use(requireUser);
+
+// GET /api/groups
 router.get('/', (req, res) => {
-    res.json(storage.getGroups());
+  const db = readDB();
+  const me = req.me;
+  const groups = isSuper(me)
+    ? db.groups
+    : db.groups.filter(g => (g.members || []).includes(me.id) || (g.admins || []).includes(me.id));
+  return res.json(groups);
 });
 
-// Get groups for a specific user
+// GET /api/groups/user/:userId
 router.get('/user/:userId', (req, res) => {
-    const user = storage.getUsers().find(u => u.id === req.params.userId);
-    if (user) {
-        const userGroups = storage.getGroups().filter(g => 
-            user.groups.includes(g.id) || 
-            user.roles.includes('super-admin')
-        );
-        res.json(userGroups);
-    } else {
-        res.status(404).json({ message: 'User not found' });
-    }
+  const db = readDB();
+  const { userId } = req.params;
+  const groups = isSuper(req.me)
+    ? db.groups
+    : db.groups.filter(g => (g.members || []).includes(userId) || (g.admins || []).includes(userId));
+  return res.json(groups);
 });
 
-// Create new group
+// POST /api/groups
 router.post('/', (req, res) => {
-    const { name, createdBy } = req.body;
-    
-    const newGroup = {
-        id: Date.now().toString(),
-        name,
-        createdBy,
-        admins: [createdBy],
-        members: [createdBy],
-        createdAt: new Date()
-    };
-    
-    storage.addGroup(newGroup);
-    
-    // Add group to creator's groups
-    const user = storage.getUsers().find(u => u.id === createdBy);
-    if (user) {
-        user.groups.push(newGroup.id);
-        storage.updateUser(createdBy, { groups: user.groups });
-    }
-    
-    res.json(newGroup);
+  if (!isSuper(req.me) && !isGroupAdmin(req.me))
+    return res.status(403).json({ success: false, message: 'Group admin or super required' });
+  const { name } = req.body || {};
+  if (!name) return res.status(400).json({ success: false, message: 'name required' });
+  const db = readDB();
+  const group = { id: genId('g_'), name, createdBy: req.me.id, admins: [req.me.id], members: [req.me.id], createdAt: Date.now() };
+  db.groups.push(group);
+  writeDB(db);
+  return res.json({ success: true, group });
 });
 
-// Add user to group
+// DELETE /api/groups/:groupId
+router.delete('/:groupId', (req, res) => {
+  const db = readDB();
+  const g = db.groups.find(g => g.id === req.params.groupId);
+  if (!g) return res.status(404).json({ success: false, message: 'Group not found' });
+  if (!(isSuper(req.me) || g.createdBy === req.me.id))
+    return res.status(403).json({ success: false, message: 'Only owner or super' });
+
+  db.channels = db.channels.filter(c => c.groupId !== g.id);
+  db.messages = db.messages.filter(m => m.groupId !== g.id);
+  db.groups = db.groups.filter(x => x.id !== g.id);
+  writeDB(db);
+  return res.json({ success: true });
+});
+
+// POST /api/groups/:groupId/members
 router.post('/:groupId/members', (req, res) => {
-    const { userId } = req.body;
-    const group = storage.getGroups().find(g => g.id === req.params.groupId);
-    
-    if (group) {
-        if (!group.members.includes(userId)) {
-            group.members.push(userId);
-            storage.updateGroup(req.params.groupId, { members: group.members });
-            
-            // Update user's groups
-            const user = storage.getUsers().find(u => u.id === userId);
-            if (user && !user.groups.includes(req.params.groupId)) {
-                user.groups.push(req.params.groupId);
-                storage.updateUser(userId, { groups: user.groups });
-            }
-        }
-        res.json(group);
-    } else {
-        res.status(404).json({ message: 'Group not found' });
-    }
+  const db = readDB();
+  const g = db.groups.find(g => g.id === req.params.groupId);
+  if (!g) return res.status(404).json({ success: false, message: 'Group not found' });
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ success: false, message: 'userId required' });
+  if (!(isSuper(req.me) || g.admins.includes(req.me.id)))
+    return res.status(403).json({ success: false, message: 'Admins only' });
+  if (!g.members.includes(userId)) g.members.push(userId);
+  writeDB(db);
+  return res.json(g);
 });
 
-// Remove user from group
+// DELETE /api/groups/:groupId/members/:userId
 router.delete('/:groupId/members/:userId', (req, res) => {
-    const group = storage.getGroups().find(g => g.id === req.params.groupId);
-    
-    if (group) {
-        group.members = group.members.filter(m => m !== req.params.userId);
-        storage.updateGroup(req.params.groupId, { members: group.members });
-        
-        // Update user's groups
-        const user = storage.getUsers().find(u => u.id === req.params.userId);
-        if (user) {
-            user.groups = user.groups.filter(g => g !== req.params.groupId);
-            storage.updateUser(req.params.userId, { groups: user.groups });
-        }
-        
-        res.json(group);
-    } else {
-        res.status(404).json({ message: 'Group not found' });
-    }
+  const db = readDB();
+  const g = db.groups.find(g => g.id === req.params.groupId);
+  if (!g) return res.status(404).json({ success: false, message: 'Group not found' });
+  if (!(isSuper(req.me) || g.admins.includes(req.me.id)))
+    return res.status(403).json({ success: false, message: 'Admins only' });
+  const { userId } = req.params;
+  g.members = g.members.filter(m => m !== userId);
+  g.admins = g.admins.filter(a => a !== userId);
+  writeDB(db);
+  return res.json(g);
 });
 
-// Delete group
-router.delete('/:id', (req, res) => {
-    const success = storage.deleteGroup(req.params.id);
-    
-    if (success) {
-        // Remove group from all users
-        const users = storage.getUsers();
-        users.forEach(user => {
-            user.groups = user.groups.filter(g => g !== req.params.id);
-            storage.updateUser(user.id, { groups: user.groups });
-        });
-        
-        res.json({ message: 'Group deleted successfully' });
-    } else {
-        res.status(404).json({ message: 'Group not found' });
-    }
+// POST /api/groups/:groupId/channels/:channelId/ban
+router.post('/:groupId/channels/:channelId/ban', (req, res) => {
+  const db = readDB();
+  const g = db.groups.find(g => g.id === req.params.groupId);
+  const c = db.channels.find(c => c.id === req.params.channelId);
+  if (!g || !c) return res.status(404).json({ success: false, message: 'Not found' });
+  if (!(isSuper(req.me) || g.admins.includes(req.me.id)))
+    return res.status(403).json({ success: false, message: 'Admins only' });
+
+  const { userId } = req.body || {};
+  if (!userId) return res.status(400).json({ success: false, message: 'userId required' });
+  if (!Array.isArray(c.bannedUserIds)) c.bannedUserIds = [];
+  if (!c.bannedUserIds.includes(userId)) c.bannedUserIds.push(userId);
+  writeDB(db);
+  return res.json({ success: true, channel: c });
 });
 
 module.exports = router;
+

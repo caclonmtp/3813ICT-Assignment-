@@ -291,3 +291,89 @@ tbody tr.selected {
 .quick-actions .btn {
     padding: 10px 20px;
 }
+
+/* --- Modal & Form Styling for Create Group/Channel --- */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.45);
+    backdrop-filter: blur(3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 20px;
+}
+
+.modal-content {
+    width: 100%;
+    max-width: 520px;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.15);
+    padding: 24px;
+    animation: modalIn 160ms ease-out;
+}
+
+@keyframes modalIn {
+    from { transform: translateY(8px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-content h2 {
+    margin: 0 0 4px 0;
+    font-size: 22px;
+    color: #111827;
+}
+
+.modal-subtitle {
+    margin: 0 0 16px 0;
+    color: #6b7280;
+    font-size: 14px;
+}
+
+.form-control {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    outline: none;
+    transition: all .2s ease;
+    font-size: 14px;
+}
+
+.form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+}
+
+.input-help {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #6b7280;
+}
+
+.input-error {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #dc2626;
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.btn-secondary {
+    background: #f3f4f6;
+    color: #111827;
+}
+
+.btn-secondary:hover { background: #e5e7eb; }
+
+.btn[disabled], .btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

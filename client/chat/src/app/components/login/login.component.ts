@@ -1,10 +1,15 @@
 import { Component } from '@angular/core';
+import { FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
 import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { AuthService } from '../../services/auth.service';
+import { NotifyService } from '../../services/notify.service';
 
 @Component({
     selector: 'app-login',
+    standalone: true,
+    imports: [CommonModule, FormsModule, ReactiveFormsModule],
     templateUrl: './login.component.html',
     styleUrls: ['./login.component.css']
 })
@@ -17,6 +22,7 @@ export class LoginComponent {
     constructor(
         private formBuilder: FormBuilder,
         private authService: AuthService,
+        private notify: NotifyService,
         private router: Router
     ) {
         this.loginForm = this.formBuilder.group({
@@ -40,11 +46,13 @@ export class LoginComponent {
         this.authService.login(username, password).subscribe({
             next: (response) => {
                 if (response.success) {
+                    this.notify.success('Logged in successfully');
                     this.router.navigate(['/dashboard']);
                 }
             },
             error: (error) => {
                 this.error = error.error.message || 'Login failed';
+                this.notify.error(this.error);
             }
         });
     }
@@ -58,11 +66,18 @@ export class LoginComponent {
         this.authService.register(username, email, password).subscribe({
             next: (response) => {
                 if (response.success) {
-                    this.router.navigate(['/dashboard']);
+                    // After successful registration, switch back to login form
+                    this.isRegistering = false;
+                    this.registerForm.reset();
+                    this.loginForm.reset();
+                    // Optional: brief success notice
+                    this.error = '';
+                    this.notify.success('Registration successful. Please log in.');
                 }
             },
             error: (error) => {
                 this.error = error.error.message || 'Registration failed';
+                this.notify.error(this.error);
             }
         });
     }

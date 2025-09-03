@@ -17,7 +17,9 @@
                 <div *ngFor="let group of myGroups" 
                      class="group-card"
                      [class.selected]="selectedGroup?.id === group.id"
-                     (click)="selectGroup(group)">
+                     (click)="selectGroup(group)"
+                     tabindex="0" role="button"
+                     (keydown.enter)="selectGroup(group)">
                     <div class="group-card-header">
                         <h3>{{ group.name }}</h3>
                         <span class="member-count">{{ group.members.length }} members</span>
@@ -101,30 +103,41 @@
 
     <!-- Create Group Modal -->
     <div class="modal" *ngIf="showCreateGroup">
-        <div class="modal-content">
-            <h2>Create New Group</h2>
+        <div class="modal-content" role="dialog" aria-labelledby="createGroupTitle">
+            <h2 id="createGroupTitle">Create New Group</h2>
+            <p class="modal-subtitle">Groups organize users and channels. Pick a clear, concise name.</p>
             <input type="text" 
                    [(ngModel)]="newGroupName" 
-                   placeholder="Enter group name"
-                   class="form-control">
+                   (keydown.enter)="createGroup()"
+                   placeholder="e.g. Engineering, Marketing, Project Phoenix"
+                   class="form-control"
+                   autofocus>
+            <div class="input-help" *ngIf="(newGroupName || '').trim().length < 3">Minimum 3 characters.</div>
             <div class="modal-actions">
                 <button (click)="showCreateGroup = false" class="btn btn-secondary">Cancel</button>
-                <button (click)="createGroup()" class="btn btn-primary">Create</button>
+                <button (click)="createGroup()" 
+                        class="btn btn-primary"
+                        [disabled]="!(newGroupName && newGroupName.trim().length >= 3)">Create</button>
             </div>
         </div>
     </div>
 
     <!-- Create Channel Modal -->
     <div class="modal" *ngIf="showCreateChannel">
-        <div class="modal-content">
-            <h2>Create New Channel</h2>
+        <div class="modal-content" role="dialog" aria-labelledby="createChannelTitle">
+            <h2 id="createChannelTitle">Create New Channel</h2>
+            <p class="modal-subtitle">Channels are conversations within a group. Use short, descriptive names.</p>
             <input type="text" 
                    [(ngModel)]="newChannelName" 
-                   placeholder="Enter channel name"
+                   (keydown.enter)="createChannel()"
+                   placeholder="e.g. general, releases, support"
                    class="form-control">
+            <div class="input-help" *ngIf="(newChannelName || '').trim().length < 2">Minimum 2 characters.</div>
             <div class="modal-actions">
                 <button (click)="showCreateChannel = false" class="btn btn-secondary">Cancel</button>
-                <button (click)="createChannel()" class="btn btn-primary">Create</button>
+                <button (click)="createChannel()" 
+                        class="btn btn-primary"
+                        [disabled]="!(newChannelName && newChannelName.trim().length >= 2)">Create</button>
             </div>
         </div>
     </div>

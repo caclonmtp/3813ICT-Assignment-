@@ -3,6 +3,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../services/auth.service';
 import { User } from '../../models/user.model';
 import { HttpClient } from '@angular/common/http';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
 interface Message {
     id: string;
@@ -15,6 +17,8 @@ interface Message {
 
 @Component({
     selector: 'app-chat',
+    standalone: true,
+    imports: [CommonModule, FormsModule],
     templateUrl: './chat.component.html',
     styleUrls: ['./chat.component.css']
 })
@@ -47,7 +51,6 @@ export class ChatComponent implements OnInit, OnDestroy {
             this.loadGroupMembers();
         });
 
-        // Simulate real-time updates (will be replaced with Socket.io in Phase 2)
         this.messageInterval = setInterval(() => {
             this.loadMessages();
         }, 3000);
@@ -60,7 +63,6 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
 
     loadChannelInfo(): void {
-        // Load channel details
         this.http.get<any>(`http://localhost:3000/api/channels/group/${this.groupId}`)
             .subscribe(channels => {
                 const channel = channels.find((c: any) => c.id === this.channelId);
@@ -69,7 +71,6 @@ export class ChatComponent implements OnInit, OnDestroy {
                 }
             });
 
-        // Load group details
         this.http.get<any>(`http://localhost:3000/api/groups`)
             .subscribe(groups => {
                 const group = groups.find((g: any) => g.id === this.groupId);
@@ -80,7 +81,6 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
 
     loadMessages(): void {
-        // In Phase 1, using mock messages stored locally
         const storedMessages = localStorage.getItem(`messages_${this.channelId}`);
         if (storedMessages) {
             this.messages = JSON.parse(storedMessages);
@@ -92,7 +92,6 @@ export class ChatComponent implements OnInit, OnDestroy {
             .subscribe(groups => {
                 const group = groups.find((g: any) => g.id === this.groupId);
                 if (group) {
-                    // Load member details
                     this.http.get<User[]>('http://localhost:3000/api/users')
                         .subscribe(users => {
                             this.groupMembers = users.filter(u => 
@@ -116,13 +115,9 @@ export class ChatComponent implements OnInit, OnDestroy {
         };
 
         this.messages.push(message);
-        
-        // Store messages locally for Phase 1
         localStorage.setItem(`messages_${this.channelId}`, JSON.stringify(this.messages));
-        
         this.newMessage = '';
         
-        // Auto-scroll to bottom
         setTimeout(() => {
             const messagesContainer = document.querySelector('.messages-container');
             if (messagesContainer) {

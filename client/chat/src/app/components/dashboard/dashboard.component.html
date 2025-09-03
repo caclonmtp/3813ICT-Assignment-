@@ -29,7 +29,9 @@
                 <div *ngFor="let group of groups" 
                      class="group-item"
                      [class.active]="selectedGroup?.id === group.id"
-                     (click)="selectGroup(group)">
+                     (click)="selectGroup(group)"
+                     tabindex="0" role="button"
+                     (keydown.enter)="selectGroup(group)">
                     <i class="group-icon">👥</i>
                     <span>{{ group.name }}</span>
                 </div>
@@ -46,7 +48,9 @@
                 <div class="channels-grid">
                     <div *ngFor="let channel of channels[selectedGroup.id]" 
                          class="channel-card"
-                         (click)="enterChannel(selectedGroup.id, channel.id)">
+                         (click)="enterChannel(selectedGroup.id, channel.id)"
+                         tabindex="0" role="button"
+                         (keydown.enter)="enterChannel(selectedGroup.id, channel.id)">
                         <div class="channel-icon">#</div>
                         <div class="channel-info">
                             <h4>{{ channel.name }}</h4>

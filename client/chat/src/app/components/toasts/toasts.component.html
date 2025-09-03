@@ -1,0 +1,8 @@
+<div class="toasts">
+  <div class="toast" *ngFor="let t of (toasts$ | async)" [class.success]="t.type === 'success'" [class.error]="t.type === 'error'" [class.info]="t.type === 'info'">
+    <span class="message">{{ t.message }}</span>
+    <button class="close" (click)="dismiss(t.id)">×</button>
+  </div>
+  
+</div>
+

@@ -39,13 +39,8 @@ export class AuthService {
     }
 
     register(username: string, email: string, password: string): Observable<any> {
-        return this.http.post<any>(`${this.apiUrl}/auth/register`, { username, email, password })
-            .pipe(tap(response => {
-                if (response.success) {
-                    this.storageService.setItem('currentUser', JSON.stringify(response.user));
-                    this.currentUserSubject.next(response.user);
-                }
-            }));
+        // Do not auto-login after register; let user return to login screen
+        return this.http.post<any>(`${this.apiUrl}/auth/register`, { username, email, password });
     }
 
     logout(): void {

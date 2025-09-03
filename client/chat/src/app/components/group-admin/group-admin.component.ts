@@ -6,9 +6,17 @@ import { User } from '../../models/user.model';
 import { Group } from '../../models/group.model';
 import { Channel } from '../../models/channel.model';
 import { HttpClient } from '@angular/common/http';
+import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { NotifyService } from '../../services/notify.service';
+import { ConfirmService } from '../../services/confirm.service';
+
 
 @Component({
     selector: 'app-group-admin',
+    standalone: true,
+    imports: [CommonModule, FormsModule, RouterModule],
     templateUrl: './group-admin.component.html',
     styleUrls: ['./group-admin.component.css']
 })
@@ -31,7 +39,9 @@ export class GroupAdminComponent implements OnInit {
         private authService: AuthService,
         private groupService: GroupService,
         private userService: UserService,
-        private http: HttpClient
+        private http: HttpClient,
+        private notify: NotifyService,
+        private confirm: ConfirmService
     ) {}
 
     ngOnInit(): void {
@@ -45,7 +55,6 @@ export class GroupAdminComponent implements OnInit {
 
         this.groupService.getGroups().subscribe({
             next: (groups) => {
-                // Filter groups where current user is admin or created by user
                 this.myGroups = groups.filter(g => 
                     g.createdBy === this.currentUser!.id ||
                     g.admins.includes(this.currentUser!.id) ||
@@ -53,7 +62,6 @@ export class GroupAdminComponent implements OnInit {
                 );
                 
                 if (this.selectedGroup) {
-                    // Refresh selected group
                     this.selectedGroup = this.myGroups.find(g => g.id === this.selectedGroup!.id) || null;
                     if (this.selectedGroup) {
                         this.loadGroupDetails(this.selectedGroup);
@@ -78,7 +86,6 @@ export class GroupAdminComponent implements OnInit {
     }
 
     loadGroupDetails(group: Group): void {
-        // Load channels
         this.http.get<Channel[]>(`http://localhost:3000/api/channels/group/${group.id}`)
             .subscribe({
                 next: (channels) => {
@@ -86,7 +93,6 @@ export class GroupAdminComponent implements OnInit {
                 }
             });
 
-        // Load members
         this.groupMembers = this.allUsers.filter(u => group.members.includes(u.id));
         this.updateAvailableUsers();
     }
@@ -99,23 +105,26 @@ export class GroupAdminComponent implements OnInit {
         }
     }
 
-    createGroup(): void {
+    async createGroup(): Promise<void> {
         if (!this.newGroupName.trim() || !this.currentUser) return;
-
+        const ok = await this.confirm.ask(`Create group "${this.newGroupName.trim()}"?`, 'Confirm Create');
+        if (!ok) return;
         this.groupService.createGroup(this.newGroupName, this.currentUser.id)
             .subscribe({
                 next: () => {
                     this.newGroupName = '';
                     this.showCreateGroup = false;
                     this.loadMyGroups();
-                    alert('Group created successfully!');
-                }
+                    this.notify.success('Group created successfully');
+                },
+                error: () => this.notify.error('Failed to create group')
             });
     }
 
-    createChannel(): void {
+    async createChannel(): Promise<void> {
         if (!this.newChannelName.trim() || !this.selectedGroup || !this.currentUser) return;
-
+        const ok = await this.confirm.ask(`Create channel "${this.newChannelName.trim()}" in ${this.selectedGroup.name}?`, 'Confirm Create');
+        if (!ok) return;
         this.http.post('http://localhost:3000/api/channels', {
             name: this.newChannelName,
             groupId: this.selectedGroup.id,
@@ -125,61 +134,70 @@ export class GroupAdminComponent implements OnInit {
                 this.newChannelName = '';
                 this.showCreateChannel = false;
                 this.loadGroupDetails(this.selectedGroup!);
-                alert('Channel created successfully!');
-            }
+                this.notify.success('Channel created successfully');
+            },
+            error: () => this.notify.error('Failed to create channel')
         });
     }
 
-    addMemberToGroup(userId: string): void {
+    async addMemberToGroup(userId: string): Promise<void> {
         if (!this.selectedGroup) return;
-
+        const user = this.allUsers.find(u => u.id === userId);
+        const ok = await this.confirm.ask(`Add ${user?.username} to ${this.selectedGroup.name}?`, 'Confirm Add');
+        if (!ok) return;
         this.groupService.addUserToGroup(this.selectedGroup.id, userId)
             .subscribe({
                 next: () => {
                     this.loadMyGroups();
                     this.showAddMember = false;
-                    alert('Member added successfully!');
-                }
+                    this.notify.success('Member added successfully');
+                },
+                error: () => this.notify.error('Failed to add member')
             });
     }
 
-    removeMemberFromGroup(userId: string): void {
+    async removeMemberFromGroup(userId: string): Promise<void> {
         if (!this.selectedGroup) return;
-
-        if (confirm('Are you sure you want to remove this member?')) {
-            this.groupService.removeUserFromGroup(this.selectedGroup.id, userId)
-                .subscribe({
-                    next: () => {
-                        this.loadMyGroups();
-                        alert('Member removed successfully!');
-                    }
-                });
-        }
+        const user = this.allUsers.find(u => u.id === userId);
+        const ok = await this.confirm.ask(`Remove ${user?.username} from ${this.selectedGroup.name}?`, 'Confirm Remove');
+        if (!ok) return;
+        this.groupService.removeUserFromGroup(this.selectedGroup.id, userId)
+            .subscribe({
+                next: () => {
+                    this.loadMyGroups();
+                    this.notify.success('Member removed successfully');
+                },
+                error: () => this.notify.error('Failed to remove member')
+            });
     }
 
-    deleteChannel(channelId: string): void {
-        if (confirm('Are you sure you want to delete this channel?')) {
-            this.http.delete(`http://localhost:3000/api/channels/${channelId}`)
-                .subscribe({
-                    next: () => {
-                        this.loadGroupDetails(this.selectedGroup!);
-                        alert('Channel deleted successfully!');
-                    }
-                });
-        }
+    async deleteChannel(channelId: string): Promise<void> {
+        const ch = this.groupChannels.find(c => c.id === channelId);
+        const ok = await this.confirm.ask(`Delete channel "${ch?.name}"? This cannot be undone.`, 'Confirm Delete');
+        if (!ok) return;
+        this.http.delete(`http://localhost:3000/api/channels/${channelId}`)
+            .subscribe({
+                next: () => {
+                    this.loadGroupDetails(this.selectedGroup!);
+                    this.notify.success('Channel deleted successfully');
+                },
+                error: () => this.notify.error('Failed to delete channel')
+            });
     }
 
-    deleteGroup(groupId: string): void {
-        if (confirm('Are you sure you want to delete this group? This will also delete all channels.')) {
-            this.groupService.deleteGroup(groupId)
-                .subscribe({
-                    next: () => {
-                        this.selectedGroup = null;
-                        this.loadMyGroups();
-                        alert('Group deleted successfully!');
-                    }
-                });
-        }
+    async deleteGroup(groupId: string): Promise<void> {
+        const g = this.myGroups.find(x => x.id === groupId);
+        const ok = await this.confirm.ask(`Delete group "${g?.name}" and all its channels?`, 'Confirm Delete');
+        if (!ok) return;
+        this.groupService.deleteGroup(groupId)
+            .subscribe({
+                next: () => {
+                    this.selectedGroup = null;
+                    this.loadMyGroups();
+                    this.notify.success('Group deleted successfully');
+                },
+                error: () => this.notify.error('Failed to delete group')
+            });
     }
 
     canDeleteGroup(group: Group): boolean {

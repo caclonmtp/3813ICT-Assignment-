@@ -58,7 +58,7 @@
             <div class="message-input-container">
                 <textarea 
                     [(ngModel)]="newMessage"
-                    (keypress)="handleKeyPress($event)"
+                    (keydown)="handleKeyPress($event)"
                     placeholder="Type a message..."
                     class="message-input"
                     rows="2">

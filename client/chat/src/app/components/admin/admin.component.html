@@ -21,7 +21,9 @@
                     <tbody>
                         <tr *ngFor="let user of users" 
                             [class.selected]="selectedUser?.id === user.id"
-                            (click)="selectUser(user)">
+                            (click)="selectUser(user)"
+                            role="button" tabindex="0"
+                            (keydown.enter)="selectUser(user)">
                             <td>{{ user.username }}</td>
                             <td>{{ user.email }}</td>
                             <td>
@@ -68,7 +70,9 @@
                     <tbody>
                         <tr *ngFor="let group of groups" 
                             [class.selected]="selectedGroup?.id === group.id"
-                            (click)="selectGroup(group)">
+                            (click)="selectGroup(group)"
+                            role="button" tabindex="0"
+                            (keydown.enter)="selectGroup(group)">
                             <td>{{ group.name }}</td>
                             <td>{{ group.createdBy }}</td>
                             <td>{{ group.members.length }} members</td>

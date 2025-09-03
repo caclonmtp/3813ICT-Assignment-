@@ -1,29 +1,19 @@
 const express = require('express');
 const cors = require('cors');
-const bodyParser = require('body-parser');
-const path = require('path');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
 
-// Routes
-const authRoutes = require('./routes/auth');
-const userRoutes = require('./routes/users');
-const groupRoutes = require('./routes/groups');
-const channelRoutes = require('./routes/channels');
+// Mount modular routes
+app.use('/api/auth', require('./routes/auth'));
+app.use('/api/users', require('./routes/users'));
+app.use('/api/groups', require('./routes/groups'));
+app.use('/api/channels', require('./routes/channels'));
+app.use('/api/messages', require('./routes/messages'));
+app.use('/api/admin', require('./routes/admin'));
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/groups', groupRoutes);
-app.use('/api/channels', channelRoutes);
+app.listen(PORT, () => console.log(`API listening on http://localhost:${PORT}/api`));
 
-// Start server
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
