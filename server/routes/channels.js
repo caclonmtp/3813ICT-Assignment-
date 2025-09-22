@@ -1,5 +1,11 @@
 const express = require('express');
-const { readDB, writeDB, genId } = require('../lib/db');
+const {
+  listChannelsByGroupId,
+  createChannel,
+  deleteChannel,
+  getGroupById,
+  getChannelById
+} = require('../lib/db');
 const { requireUser, isSuper } = require('../middleware/auth');
 
 const router = express.Router();
@@ -7,43 +13,51 @@ const router = express.Router();
 router.use(requireUser);
 
 // GET /api/channels/group/:groupId
-router.get('/group/:groupId', (req, res) => {
-  const db = readDB();
-  const g = db.groups.find(g => g.id === req.params.groupId);
-  if (!g) return res.status(404).json({ success: false, message: 'Group not found' });
-  const channels = db.channels.filter(c => c.groupId === g.id);
-  return res.json(channels);
+router.get('/group/:groupId', async (req, res, next) => {
+  try {
+    const group = await getGroupById(req.params.groupId);
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+    const channels = await listChannelsByGroupId(group.id);
+    return res.json(channels);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // POST /api/channels
-router.post('/', (req, res) => {
-  const db = readDB();
-  const { name, groupId } = req.body || {};
-  if (!name || !groupId) return res.status(400).json({ success: false, message: 'name, groupId required' });
-  const g = db.groups.find(g => g.id === groupId);
-  if (!g) return res.status(404).json({ success: false, message: 'Group not found' });
-  if (!(isSuper(req.me) || g.admins.includes(req.me.id)))
-    return res.status(403).json({ success: false, message: 'Admins only' });
-  const channel = { id: genId('c_'), groupId: g.id, name, createdBy: req.me.id, createdAt: Date.now(), bannedUserIds: [] };
-  db.channels.push(channel);
-  writeDB(db);
-  return res.json(channel);
+router.post('/', async (req, res, next) => {
+  try {
+    const { name, groupId } = req.body || {};
+    if (!name || !groupId) {
+      return res.status(400).json({ success: false, message: 'name, groupId required' });
+    }
+    const group = await getGroupById(groupId);
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+    if (!(isSuper(req.me) || group.admins.includes(req.me.id))) {
+      return res.status(403).json({ success: false, message: 'Admins only' });
+    }
+    const channel = await createChannel({ groupId: group.id, name, createdBy: req.me.id });
+    return res.json(channel);
+  } catch (err) {
+    next(err);
+  }
 });
 
 // DELETE /api/channels/:channelId
-router.delete('/:channelId', (req, res) => {
-  const db = readDB();
-  const c = db.channels.find(c => c.id === req.params.channelId);
-  if (!c) return res.status(404).json({ success: false, message: 'Channel not found' });
-  const g = db.groups.find(g => g.id === c.groupId);
-  if (!g) return res.status(404).json({ success: false, message: 'Group not found' });
-  if (!(isSuper(req.me) || g.admins.includes(req.me.id)))
-    return res.status(403).json({ success: false, message: 'Admins only' });
-  db.channels = db.channels.filter(x => x.id !== c.id);
-  db.messages = db.messages.filter(m => !(m.groupId === g.id && m.channelId === c.id));
-  writeDB(db);
-  return res.json({ success: true });
+router.delete('/:channelId', async (req, res, next) => {
+  try {
+    const channel = await getChannelById(req.params.channelId);
+    if (!channel) return res.status(404).json({ success: false, message: 'Channel not found' });
+    const group = await getGroupById(channel.groupId);
+    if (!group) return res.status(404).json({ success: false, message: 'Group not found' });
+    if (!(isSuper(req.me) || group.admins.includes(req.me.id))) {
+      return res.status(403).json({ success: false, message: 'Admins only' });
+    }
+    await deleteChannel(channel.id);
+    return res.json({ success: true });
+  } catch (err) {
+    next(err);
+  }
 });
 
 module.exports = router;
-

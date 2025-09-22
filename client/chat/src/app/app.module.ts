@@ -15,10 +15,9 @@ import { AdminComponent } from './components/admin/admin.component';
 import { GroupAdminComponent } from './components/group-admin/group-admin.component';
 
 @NgModule({
-  // ⛔ Do not declare standalone components here
   declarations: [],
 
-  // ✅ Import standalone components here
+  // Import standalone components here
   imports: [
     BrowserModule,
     AppRoutingModule,

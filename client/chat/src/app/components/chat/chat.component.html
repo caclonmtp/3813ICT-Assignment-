@@ -9,6 +9,7 @@
         </div>
         <div class="header-actions">
             <button class="btn-info">ℹ️ Info</button>
+            <button class="btn-admin" *ngIf="canManageGroup" (click)="goToGroupAdmin()">Manage Group</button>
         </div>
     </div>
 
@@ -58,7 +59,7 @@
             <div class="message-input-container">
                 <textarea 
                     [(ngModel)]="newMessage"
-                    (keydown)="handleKeyPress($event)"
+                    (keydown.enter)="handleKeyPress($event)"
                     placeholder="Type a message..."
                     class="message-input"
                     rows="2">

@@ -5,6 +5,7 @@ import { User } from '../../models/user.model';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { Group } from '../../models/group.model';
 
 interface Message {
     id: string;
@@ -28,10 +29,13 @@ export class ChatComponent implements OnInit, OnDestroy {
     channelId: string = '';
     channelName: string = '';
     groupName: string = '';
+    group: Group | null = null;
     messages: Message[] = [];
     newMessage: string = '';
     groupMembers: User[] = [];
     private messageInterval: any;
+    canManageGroup: boolean = false;
+    private lastSentAt = 0;
 
     constructor(
         private route: ActivatedRoute,
@@ -76,6 +80,9 @@ export class ChatComponent implements OnInit, OnDestroy {
                 const group = groups.find((g: any) => g.id === this.groupId);
                 if (group) {
                     this.groupName = group.name;
+                    this.group = group as Group;
+                    const meId = this.currentUser?.id || '';
+                    this.canManageGroup = this.authService.isSuperAdmin() || group.createdBy === meId || (group.admins || []).includes(meId);
                 }
             });
     }
@@ -104,6 +111,11 @@ export class ChatComponent implements OnInit, OnDestroy {
 
     sendMessage(): void {
         if (!this.newMessage.trim() || !this.currentUser) return;
+        const now = Date.now();
+        if (now - this.lastSentAt < 400) {
+            return; // throttle rapid repeats
+        }
+        this.lastSentAt = now;
 
         const message: Message = {
             id: Date.now().toString(),
@@ -126,15 +138,25 @@ export class ChatComponent implements OnInit, OnDestroy {
         }, 10);
     }
 
-    handleKeyPress(event: KeyboardEvent): void {
-        if (event.key === 'Enter' && !event.shiftKey) {
-            event.preventDefault();
+    handleKeyPress(event: Event): void {
+        const e = event as KeyboardEvent;
+        // Prevent multiple sends when holding Enter by ignoring auto-repeat
+        if (e.key === 'Enter' && !e.shiftKey) {
+            if (e.repeat) {
+                e.preventDefault();
+                return;
+            }
+            e.preventDefault();
             this.sendMessage();
         }
     }
 
     backToDashboard(): void {
         this.router.navigate(['/dashboard']);
+    }
+
+    goToGroupAdmin(): void {
+        this.router.navigate(['/group-admin']);
     }
 
     formatTime(timestamp: Date): string {

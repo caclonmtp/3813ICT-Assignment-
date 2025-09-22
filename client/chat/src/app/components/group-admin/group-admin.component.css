@@ -377,3 +377,18 @@ tbody tr.selected {
     opacity: 0.6;
     cursor: not-allowed;
 }
+
+/* Ensure member name and email don't concatenate inline */
+.members-list .member-item .member-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.members-list .member-item .member-name {
+    font-weight: 600;
+}
+
+.members-list .member-item .member-email {
+    color: #6b7280;
+    font-size: 12px;
+}
