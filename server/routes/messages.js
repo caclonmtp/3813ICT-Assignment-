@@ -4,6 +4,7 @@ const {
   createMessage,
   getChannelById
 } = require('../lib/db');
+const { emitNewMessage } = require('../lib/socket');
 const { requireUser } = require('../middleware/auth');
 
 const router = express.Router();
@@ -44,6 +45,7 @@ router.post('/', async (req, res, next) => {
       username: req.me.username,
       content: trimmed
     });
+    emitNewMessage(message);
     return res.json({ success: true, message });
   } catch (err) {
     next(err);

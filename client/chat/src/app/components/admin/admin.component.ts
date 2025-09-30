@@ -21,6 +21,13 @@ export class AdminComponent implements OnInit {
     groups: Group[] = [];
     selectedUser: User | null = null;
     selectedGroup: Group | null = null;
+    showCreateUser = false;
+    createUserLoading = false;
+    createUserError: string | null = null;
+    newUserUsername = '';
+    newUserEmail = '';
+    newUserPassword = '';
+    addToSelectedGroup = false;
 
     constructor(
         private userService: UserService,
@@ -56,6 +63,111 @@ export class AdminComponent implements OnInit {
 
     selectGroup(group: Group): void {
         this.selectedGroup = group;
+        this.addToSelectedGroup = !!this.selectedGroup;
+    }
+
+    openCreateUser(): void {
+        this.resetCreateUserForm();
+        this.showCreateUser = true;
+    }
+
+    closeCreateUser(): void {
+        if (this.createUserLoading) {
+            return;
+        }
+        this.showCreateUser = false;
+        this.resetCreateUserForm();
+    }
+
+    createUser(): void {
+        if (this.createUserLoading) {
+            return;
+        }
+
+        const username = this.newUserUsername.trim();
+        const email = this.newUserEmail.trim();
+        const password = this.newUserPassword.trim();
+
+        if (!username || !email || !password) {
+            this.createUserError = 'Username, email, and password are required.';
+            return;
+        }
+
+        this.createUserLoading = true;
+        this.createUserError = null;
+
+        this.userService
+            .createUser({ username, email, password })
+            .subscribe({
+                next: response => {
+                    if (!response?.success || !response.user) {
+                        this.createUserLoading = false;
+                        this.createUserError = 'User created but response was incomplete.';
+                        return;
+                    }
+
+                    const createdUser = response.user;
+                    const shouldAddToGroup = this.addToSelectedGroup && !!this.selectedGroup;
+
+                    if (shouldAddToGroup && this.selectedGroup) {
+                        this.groupService
+                            .addUserToGroup(this.selectedGroup.id, createdUser.id)
+                            .subscribe({
+                                next: () => {
+                                    this.finishUserCreation(createdUser, true);
+                                },
+                                error: err => {
+                                    this.createUserLoading = false;
+                                    this.createUserError = this.extractErrorMessage(
+                                        err,
+                                        'User created but failed to add to selected group.'
+                                    );
+                                    this.loadUsers();
+                                    this.loadGroups();
+                                }
+                            });
+                    } else {
+                        this.finishUserCreation(createdUser, false);
+                    }
+                },
+                error: err => {
+                    this.createUserLoading = false;
+                    this.createUserError = this.extractErrorMessage(err, 'Failed to create user.');
+                }
+            });
+    }
+
+    private finishUserCreation(user: User, addedToGroup: boolean): void {
+        const groupName = this.selectedGroup?.name;
+        this.createUserLoading = false;
+        this.showCreateUser = false;
+        this.resetCreateUserForm();
+        this.loadUsers();
+        if (addedToGroup && groupName) {
+            this.loadGroups();
+            this.notify.success(`${user.username} added to ${groupName}`);
+        } else {
+            this.notify.success(`Created user ${user.username}`);
+        }
+    }
+
+    private resetCreateUserForm(): void {
+        this.newUserUsername = '';
+        this.newUserEmail = '';
+        this.newUserPassword = '';
+        this.createUserError = null;
+        this.addToSelectedGroup = !!this.selectedGroup;
+    }
+
+    private extractErrorMessage(error: unknown, fallback: string): string {
+        if (error && typeof error === 'object') {
+            const err = error as any;
+            const explicit = err?.error?.message || err?.message;
+            if (explicit && typeof explicit === 'string') {
+                return explicit;
+            }
+        }
+        return fallback;
     }
 
     async promoteToGroupAdmin(userId: string): Promise<void> {

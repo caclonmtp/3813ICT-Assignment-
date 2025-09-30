@@ -59,6 +59,28 @@
     font-size: 16px;
 }
 
+.btn-admin {
+    background: linear-gradient(135deg, #4a90e2 0%, #357ae8 100%);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-admin:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(53, 122, 232, 0.3);
+}
+
+.btn-admin:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
 .chat-body {
     flex: 1;
     display: flex;
@@ -120,11 +142,143 @@
     font-size: 12px;
 }
 
+
 .chat-main {
     flex: 1;
     display: flex;
     flex-direction: column;
     background: white;
+}
+
+.call-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid #e1e4e8;
+    background: #fafbff;
+}
+
+.btn-call {
+    padding: 8px 18px;
+    border-radius: 20px;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    color: white;
+}
+
+.btn-call:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-call.start {
+    background: linear-gradient(135deg, #28a745 0%, #2ecc71 100%);
+}
+
+.btn-call.join {
+    background: linear-gradient(135deg, #1d8fe1 0%, #63a4ff 100%);
+}
+
+.btn-call.end {
+    background: linear-gradient(135deg, #e74c3c 0%, #ff7675 100%);
+}
+
+.btn-call.share {
+    background: linear-gradient(135deg, #1d8fe1 0%, #63a4ff 100%);
+}
+
+.btn-call:not(:disabled):hover {
+    transform: translateY(-1px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+}
+
+.call-indicator {
+    font-size: 14px;
+    font-weight: 600;
+    color: #28a745;
+}
+
+.call-indicator.ringing {
+    color: #f59e0b;
+    animation: callPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes callPulse {
+    0%, 100% {
+        opacity: 0.6;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.call-error {
+    color: #c0392b;
+    font-size: 14px;
+}
+
+.video-section {
+    padding: 16px 20px 0;
+    background: linear-gradient(180deg, #f8faff 0%, #ffffff 100%);
+    border-bottom: 1px solid #e1e4e8;
+}
+
+.video-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+}
+
+.video-tile {
+    background: #0b1736;
+    border-radius: 12px;
+    padding: 12px;
+    position: relative;
+    color: white;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.video-tile h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.video-tile video {
+    width: 100%;
+    flex: 1;
+    border-radius: 8px;
+    background: black;
+    object-fit: cover;
+}
+
+.video-tile.share {
+    background: #10264b;
+}
+
+.video-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 14px;
+    pointer-events: none;
+}
+
+.channel-error {
+    padding: 12px 20px;
+    background: #ffecec;
+    color: #c0392b;
+    font-weight: 600;
+    border-bottom: 1px solid #f5c6cb;
 }
 
 .messages-container {

@@ -1,27 +1,36 @@
 const assert = require('assert/strict');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+const { MongoClient } = require('mongodb');
 
-function loadDb(dbPath) {
+const DEFAULT_URI = process.env.MEAN_CHAT_MONGO_URI || 'mongodb://127.0.0.1:27017';
+
+function loadDb(dbName) {
   const modulePath = require.resolve('../lib/db');
   delete require.cache[modulePath];
-  process.env.MEAN_CHAT_DB_PATH = dbPath;
+  process.env.MEAN_CHAT_DB_PROVIDER = 'mongo';
+  process.env.MEAN_CHAT_MONGO_DB = dbName;
   return require('../lib/db');
 }
 
 async function setupDb() {
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'mean-chat-db-'));
-  const dbPath = path.join(tmpDir, 'app.db');
-  const db = loadDb(dbPath);
+  const dbName = `mean-chat-test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const db = loadDb(dbName);
   await db.initDb();
 
-  const cleanup = () => {
-    db.closeDb();
+  const cleanup = async () => {
+    await db.closeDb();
     const modulePath = require.resolve('../lib/db');
     delete require.cache[modulePath];
-    delete process.env.MEAN_CHAT_DB_PATH;
-    fs.rmSync(tmpDir, { recursive: true, force: true });
+
+    const client = new MongoClient(process.env.MEAN_CHAT_MONGO_URI || DEFAULT_URI);
+    try {
+      await client.connect();
+      await client.db(dbName).dropDatabase();
+    } finally {
+      await client.close().catch(() => {});
+    }
+
+    delete process.env.MEAN_CHAT_DB_PROVIDER;
+    delete process.env.MEAN_CHAT_MONGO_DB;
   };
 
   return { db, cleanup };
@@ -37,7 +46,7 @@ describe('database library', () => {
       assert.strictEqual(superUser.email, 'super@admin.com');
       assert.ok(superUser.roles.includes('super-admin'));
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 
@@ -50,19 +59,19 @@ describe('database library', () => {
       assert.ok(/^u_[a-z0-9]+$/.test(second));
       assert.notStrictEqual(first, second);
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 
   it('closeDb resets state for subsequent initDb calls', async () => {
     const { db, cleanup } = await setupDb();
     try {
-      db.closeDb();
+      await db.closeDb();
       await db.initDb();
       const superUser = await db.findUserByUsername('super');
       assert.ok(superUser);
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 
@@ -91,7 +100,7 @@ describe('database library', () => {
       assert.ok(byCredentials);
       assert.strictEqual(byCredentials.id, created.id);
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 
@@ -121,7 +130,7 @@ describe('database library', () => {
       const superRoleCount = dedupUser.roles.filter(r => r === 'super-admin').length;
       assert.strictEqual(superRoleCount, 1);
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 
@@ -143,7 +152,7 @@ describe('database library', () => {
       assert.ok(!updatedGroup.admins.includes(member.id));
       assert.strictEqual(updatedGroup.createdBy, owner.id);
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 
@@ -178,7 +187,7 @@ describe('database library', () => {
       const deleted = await db.getGroupById(group.id);
       assert.strictEqual(deleted, null);
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 
@@ -215,7 +224,7 @@ describe('database library', () => {
       const afterDeleteMessages = await db.listMessages({ channelId: channel.id, limit: 0 });
       assert.strictEqual(afterDeleteMessages.length, 0);
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 
@@ -256,7 +265,7 @@ describe('database library', () => {
       const unlimited = await db.listMessages({ channelId: channel.id, limit: 0 });
       assert.strictEqual(unlimited.length, 55);
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 
@@ -346,7 +355,7 @@ describe('database library', () => {
       assert.strictEqual(newMessages.length, 1);
       assert.strictEqual(newMessages[0].id, 'm_new');
     } finally {
-      cleanup();
+      await cleanup();
     }
   });
 });

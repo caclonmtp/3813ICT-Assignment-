@@ -1,7 +1,10 @@
 <div class="admin-container">
     <header class="admin-header">
         <h1>Super Admin Panel</h1>
-        <a routerLink="/dashboard" class="btn-back">← Back to Dashboard</a>
+        <div class="header-actions">
+            <button (click)="openCreateUser()" class="btn btn-primary">+ New User</button>
+            <a routerLink="/dashboard" class="btn-back">← Back to Dashboard</a>
+        </div>
     </header>
 
     <div class="admin-content">
@@ -101,6 +104,38 @@
                     Remove {{ selectedUser.username }} from {{ selectedGroup.name }}
                 </button>
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" *ngIf="showCreateUser">
+    <div class="modal-content" role="dialog" aria-labelledby="createUserTitle">
+        <h2 id="createUserTitle">Create New User</h2>
+        <p class="modal-subtitle">Provision a new account and optionally add them to the selected group.</p>
+        <div class="form-grid">
+            <label>
+                Username
+                <input type="text" [(ngModel)]="newUserUsername" [disabled]="createUserLoading">
+            </label>
+            <label>
+                Email
+                <input type="email" [(ngModel)]="newUserEmail" [disabled]="createUserLoading">
+            </label>
+            <label>
+                Temporary Password
+                <input type="password" [(ngModel)]="newUserPassword" [disabled]="createUserLoading">
+            </label>
+            <label class="checkbox" *ngIf="selectedGroup">
+                <input type="checkbox" [(ngModel)]="addToSelectedGroup" [disabled]="createUserLoading">
+                <span>Add to {{ selectedGroup?.name }}</span>
+            </label>
+        </div>
+        <div class="form-error" *ngIf="createUserError">{{ createUserError }}</div>
+        <div class="modal-actions">
+            <button (click)="closeCreateUser()" class="btn btn-secondary" [disabled]="createUserLoading">Cancel</button>
+            <button (click)="createUser()" class="btn btn-primary" [disabled]="createUserLoading">
+                {{ createUserLoading ? 'Creating…' : 'Create User' }}
+            </button>
         </div>
     </div>
 </div>

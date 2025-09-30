@@ -35,14 +35,69 @@
         </div>
 
         <div class="chat-main">
-            <div class="messages-container">
-                <div *ngIf="messages.length === 0" class="no-messages">
+            <div class="call-controls">
+                <button
+                    *ngIf="!inCall() && !callActive()"
+                    class="btn-call start"
+                    (click)="startCall()"
+                    [disabled]="isCallLoading() || !!channelError()"
+                >
+                    {{ isCallLoading() ? 'Starting…' : 'Start Call' }}
+                </button>
+                <button
+                    *ngIf="canJoinExistingCall()"
+                    class="btn-call join"
+                    (click)="startCall()"
+                    [disabled]="isCallLoading() || !!channelError()"
+                >
+                    {{ isCallLoading() ? 'Joining…' : 'Join Call' }}
+                </button>
+                <button class="btn-call end" (click)="endCall()" [disabled]="!inCall()">
+                    Leave Call
+                </button>
+                <button class="btn-call share" (click)="toggleScreenShare()" [disabled]="!inCall()">
+                    {{ isScreenSharing() ? 'Stop Sharing' : 'Share Screen' }}
+                </button>
+                <span *ngIf="inCall()" class="call-indicator">In call</span>
+                <span *ngIf="callActive() && !inCall()" class="call-indicator ringing">
+                    {{ callHost() ? callHost() + ' started a call' : 'Call in progress' }}
+                </span>
+                <span *ngIf="callError()" class="call-error">{{ callError() }}</span>
+            </div>
+
+            <div class="video-section" *ngIf="(inCall() || localStream()) && !channelError()">
+                <div class="video-grid">
+                    <div class="video-tile local">
+                        <h4>You</h4>
+                        <video [appMediaStream]="localStream()" muted autoplay playsinline></video>
+                    </div>
+                    <div class="video-tile share" *ngIf="isScreenSharing()" [@videoTile]>
+                        <h4>Your Screen</h4>
+                        <video [appMediaStream]="screenStream()" autoplay playsinline></video>
+                    </div>
+                    <div class="video-tile" *ngFor="let participant of remoteParticipants()" [@videoTile]>
+                        <h4>{{ participant.username }}</h4>
+                        <video [appMediaStream]="participant.stream" autoplay playsinline></video>
+                        <div class="video-placeholder" *ngIf="!participant.stream">
+                            Waiting for video…
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="channel-error" *ngIf="channelError()">
+                {{ channelError() }}
+            </div>
+
+            <div class="messages-container" *ngIf="!channelError()">
+                <div *ngIf="messages().length === 0" class="no-messages">
                     <p>No messages yet. Start the conversation!</p>
                 </div>
                 
-                <div *ngFor="let message of messages" 
+                <div *ngFor="let message of messages()" 
                      class="message"
-                     [class.own-message]="message.userId === currentUser?.id">
+                     [class.own-message]="message.userId === currentUser?.id"
+                     [@messageFade]>
                     <div class="message-avatar">
                         {{ message.username.charAt(0).toUpperCase() }}
                     </div>
@@ -58,13 +113,14 @@
 
             <div class="message-input-container">
                 <textarea 
-                    [(ngModel)]="newMessage"
+                    [(ngModel)]="newMessageValue"
                     (keydown.enter)="handleKeyPress($event)"
                     placeholder="Type a message..."
                     class="message-input"
-                    rows="2">
+                    rows="2"
+                    [disabled]="!!channelError()">
                 </textarea>
-                <button (click)="sendMessage()" class="btn-send" [disabled]="!newMessage.trim()">
+                <button (click)="sendMessage()" class="btn-send" [disabled]="disableSend()">
                     Send
                 </button>
             </div>

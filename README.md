@@ -97,11 +97,16 @@ Note: client `createdAt` types are `Date`, while server stores epoch ms. Compone
 - `/admin` → AdminComponent (AuthGuard, role: `super-admin`)
 - `/group-admin` → GroupAdminComponent (AuthGuard, roles: `group-admin` or `super-admin`)
 
+### Real-Time & Media Enhancements
+- Live chat leverages Socket.IO for broadcast updates alongside the REST endpoints.
+- Group video calls now support optional screen sharing; the chat UI surfaces dedicated controls to start/stop sharing and blends the captured screen into the WebRTC peer mesh.
+- Angular signals and lightweight animations drive reactive message lists and video tile transitions for a smoother UX.
+
 ## Node Server Architecture
 
 ### Entry & Middleware
 - Express bootstrap: server/server.js:1
-- JSON DB helpers: server/lib/db.js:1 (ensure file, read/write, id gen)
+- Data provider switchboard: server/lib/db.js:1 (picks SQLite or MongoDB implementation)
 - Auth middleware: server/middleware/auth.js:1
   - Validates `x-user-id` against DB
   - Attaches `req.me` (current user)
@@ -113,7 +118,13 @@ Note: client `createdAt` types are `Date`, while server stores epoch ms. Compone
 - Groups: server/routes/groups.js:1
 - Channels: server/routes/channels.js:1
 - Messages: server/routes/messages.js:1
+- Socket hub: server/lib/socket.js:1 (auth handshake, channel joins, WebRTC signalling)
 - Admin: server/routes/admin.js:1
+
+### Database Provider
+- **MongoDB (default)** — configure URI/DB via `MEAN_CHAT_MONGO_URI`, `MEAN_CHAT_MONGO_DB`, and optional pooling env vars. Implementation lives at server/lib/db-mongo.js:1.
+
+`MEAN_CHAT_DB_PROVIDER` is still read for backwards compatibility, but any value other than `mongo` falls back to MongoDB with a warning.
 
 ## API Reference
 Base: `http://localhost:3000/api` (JSON responses)
@@ -129,6 +140,9 @@ Base: `http://localhost:3000/api` (JSON responses)
   - 400/409 on validation
 
 ### Users (requires `x-user-id`)
+- POST `/users` (super only)
+  - Body: `{ username, email, password, roles?, groups? }`
+  - 201: `{ success: true, user }`
 - GET `/users` → `User[]` (no password)
 - GET `/users/:id` → `User` (no password)
 - PUT `/users/:id`
@@ -214,8 +228,9 @@ Base: `http://localhost:3000/api` (JSON responses)
 
 ### Chat
 - Loads group/channel info from `/groups` and `/channels/group/:groupId` to display names.
-- Messages: currently stored in `localStorage` per channel in ChatComponent (client/chat/src/app/components/chat/chat.component.ts:1). The server provides `/messages` endpoints for persistence and multi-user sync; migrating ChatComponent to use them would switch to real-time-ish behavior by polling or websockets (future enhancement).
-- UI updates: pushing to `messages` array triggers re-render; scroll-to-bottom done via DOM query.
+- Messages sync live via Socket.IO and persist to the active database provider (SQLite or MongoDB) through `/messages`.
+- WebRTC video calls are initiated from the chat view, with optional screen sharing layered on top of the active peer connections.
+- Angular signals drive reactive message/call state, while animations smooth message arrival and participant tiles.
 
 ### Error/Confirm UX
 - `NotifyService` exposes a `BehaviorSubject` of toasts consumed by `ToastsComponent` to show transient alerts.
@@ -225,11 +240,11 @@ Base: `http://localhost:3000/api` (JSON responses)
 
 ### Server
 - Requirements: Node 18+
-- Install: `cd server && npm install`
+- Install: `cd server && npm install` (installs Socket.IO, SQLite, MongoDB drivers)
 - Run: `npm start`
 - API runs at `http://localhost:3000/api`
-- Data file auto-created at `server/data/bd.json` with a default super user if missing (server/lib/db.js:1).
-  - Default super credentials: `username: super`, `password: 123`
+- Storage defaults to SQLite at `server/data/app.db`; set `MEAN_CHAT_DB_PROVIDER=mongo` (and related env vars) to switch to MongoDB.
+- Default super credentials: `username: super`, `password: 123`
 
 ### Client
 - Requirements: Node 18+, Angular CLI (optional for global `ng`)
@@ -238,8 +253,7 @@ Base: `http://localhost:3000/api` (JSON responses)
 - Ensure server is running at `http://localhost:3000` for API calls.
 
 ## Notes & Future Improvements
-- Chat persistence: Switch ChatComponent to use `/api/messages` instead of `localStorage` for real multi-user chat. Add periodic polling or WebSocket for live updates.
-- Authorization: Consider JWT or session auth instead of `x-user-id` header in production. Add password hashing.
+- Security hardening: Replace plain-text passwords with hashing and adopt JWT/session-based auth over the custom header.
 - Validation: Harden server-side validation for payloads and roles.
-- Pagination: Add pagination for groups/channels/messages where needed.
-
+- Pagination: Add pagination or lazy-loading for large message/channel lists.
+- Media quality: Consider simulcast/SFU integration for more than a handful of concurrent participants.

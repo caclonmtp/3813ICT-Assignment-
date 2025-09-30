@@ -1,9 +1,12 @@
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const { initDb } = require('./lib/db');
+const { initSocketServer } = require('./lib/socket');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+let httpServer;
 
 app.use(cors());
 app.use(express.json());
@@ -26,9 +29,15 @@ app.use((err, req, res, next) => {
 async function start() {
   try {
     await initDb();
-    app.listen(PORT, () => {
-      console.log(`API listening on http://localhost:${PORT}/api`);
-    });
+    if (!httpServer) {
+      httpServer = http.createServer(app);
+      initSocketServer(httpServer);
+    }
+    if (!httpServer.listening) {
+      httpServer.listen(PORT, () => {
+        console.log(`API listening on http://localhost:${PORT}/api`);
+      });
+    }
   } catch (err) {
     console.error('Failed to start server:', err);
     process.exit(1);

@@ -5,7 +5,9 @@ const {
   updateUser,
   setUserRoles,
   addRoleToUser,
-  deleteUser
+  deleteUser,
+  createUser,
+  findUserByUsername
 } = require('../lib/db');
 const { requireUser, isSuper } = require('../middleware/auth');
 
@@ -13,6 +15,53 @@ const router = express.Router();
 
 // All endpoints require authentication
 router.use(requireUser);
+
+// POST /api/users (super only)
+router.post('/', async (req, res, next) => {
+  try {
+    if (!isSuper(req.me)) {
+      return res.status(403).json({ success: false, message: 'Super only' });
+    }
+
+    const { username, email, password, roles, groups } = req.body || {};
+    const uname = String(username || '').trim();
+    const emailNorm = String(email || '').trim();
+    const pwd = String(password || '').trim();
+
+    if (!uname || !emailNorm || !pwd) {
+      return res.status(400).json({ success: false, message: 'username, email, password required' });
+    }
+
+    const existing = await findUserByUsername(uname.toLowerCase());
+    if (existing) {
+      return res.status(409).json({ success: false, message: 'Username taken' });
+    }
+
+    if (roles && !Array.isArray(roles)) {
+      return res.status(400).json({ success: false, message: 'roles must be an array when provided' });
+    }
+
+    if (groups && !Array.isArray(groups)) {
+      return res.status(400).json({ success: false, message: 'groups must be an array when provided' });
+    }
+
+    const user = await createUser({
+      username: uname,
+      email: emailNorm,
+      password: pwd,
+      roles: roles && roles.length ? roles : undefined,
+      groups: groups && groups.length ? groups : undefined
+    });
+
+    const { password: _, ...safe } = user;
+    return res.status(201).json({ success: true, user: safe });
+  } catch (err) {
+    if (err && err.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Username taken' });
+    }
+    next(err);
+  }
+});
 
 // GET /api/users
 router.get('/', async (req, res, next) => {
@@ -91,6 +140,9 @@ router.post('/:id/promote', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     if (!isSuper(req.me)) return res.status(403).json({ success: false, message: 'Super only' });
+    if (req.me.id === req.params.id) {
+      return res.status(400).json({ success: false, message: 'Super admin cannot delete their own account' });
+    }
     const removed = await deleteUser(req.params.id, req.me.id);
     if (!removed) return res.status(404).json({ success: false, message: 'User not found' });
     return res.json({ success: true });

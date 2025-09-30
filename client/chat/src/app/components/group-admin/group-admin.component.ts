@@ -28,7 +28,7 @@ export class GroupAdminComponent implements OnInit {
     groupChannels: Channel[] = [];
     groupMembers: User[] = [];
     availableUsers: User[] = [];
-    
+
     newGroupName: string = '';
     newChannelName: string = '';
     showCreateGroup: boolean = false;

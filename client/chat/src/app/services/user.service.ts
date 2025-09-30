@@ -15,6 +15,10 @@ export class UserService {
         return this.http.get<User[]>(this.apiUrl);
     }
 
+    createUser(payload: { username: string; email: string; password: string; roles?: string[]; groups?: string[] }): Observable<{ success: boolean; user: User }> {
+        return this.http.post<{ success: boolean; user: User }>(this.apiUrl, payload);
+    }
+
     getUser(id: string): Observable<User> {
         return this.http.get<User>(`${this.apiUrl}/${id}`);
     }

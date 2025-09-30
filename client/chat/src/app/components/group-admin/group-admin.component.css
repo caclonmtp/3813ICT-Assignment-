@@ -12,6 +12,7 @@
     align-items: center;
 }
 
+
 .admin-header h1 {
     color: #333;
     margin: 0;
@@ -377,6 +378,7 @@ tbody tr.selected {
     opacity: 0.6;
     cursor: not-allowed;
 }
+
 
 /* Ensure member name and email don't concatenate inline */
 .members-list .member-item .member-info {
