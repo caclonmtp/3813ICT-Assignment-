@@ -2,8 +2,10 @@ import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import {
   Component,
+  ElementRef,
   OnDestroy,
   OnInit,
+  ViewChild,
   computed,
   signal
 } from '@angular/core';
@@ -15,7 +17,7 @@ import {
   transition,
   trigger
 } from '@angular/animations';
-import { Subject, takeUntil } from 'rxjs';
+import { Subject, takeUntil, firstValueFrom } from 'rxjs';
 import { Group } from '../../models/group.model';
 import { User } from '../../models/user.model';
 import { AuthService } from '../../services/auth.service';
@@ -34,6 +36,8 @@ interface ChatMessage {
   content: string;
   timestamp: Date;
   channelId: string;
+  avatarUrl?: string | null;
+  imageUrl?: string | null;
 }
 
 @Component({
@@ -73,8 +77,19 @@ export class ChatComponent implements OnInit, OnDestroy {
   readonly newMessage = signal('');
   readonly callActive = signal(false);
   readonly callHost = signal<string | null>(null);
+  readonly pendingImage = signal<File | null>(null);
+  readonly pendingImagePreviewUrl = signal<string | null>(null);
+  readonly avatarUploading = signal(false);
+  readonly imageUploading = signal(false);
 
-  readonly disableSend = computed(() => !this.newMessage().trim() || !!this.channelError());
+  readonly disableSend = computed(() => {
+    const hasText = !!this.newMessage().trim();
+    const hasImage = !!this.pendingImage();
+    return (!hasText && !hasImage) || !!this.channelError() || this.imageUploading();
+  });
+
+  @ViewChild('avatarPicker') avatarPicker?: ElementRef<HTMLInputElement>;
+  @ViewChild('imagePicker') imagePicker?: ElementRef<HTMLInputElement>;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -124,6 +139,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.clearPendingImage();
     this.destroy$.next();
     this.destroy$.complete();
     this.stopCallTone();
@@ -150,6 +166,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   }
 
   joinCall(): void {
+    this.stopCallTone();
     this.router.navigate(['/call', this.groupId, this.channelId], {
       queryParams: { mode: 'join', host: this.callHost() || '' }
     });
@@ -175,22 +192,167 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  clearPendingImage(): void {
+    const previewUrl = this.pendingImagePreviewUrl();
+    if (previewUrl && typeof URL !== 'undefined') {
+      URL.revokeObjectURL(previewUrl);
+    }
+    this.pendingImage.set(null);
+    this.pendingImagePreviewUrl.set(null);
+    if (this.imagePicker?.nativeElement) {
+      this.imagePicker.nativeElement.value = '';
+    }
+  }
+
   async sendMessage(): Promise<void> {
-    if (!this.currentUser || !this.newMessage().trim()) return;
+    if (!this.currentUser) return;
+    const hasImage = !!this.pendingImage();
+    const rawContent = this.newMessage();
+    const trimmed = rawContent.trim();
+    if (!hasImage && !trimmed) {
+      return;
+    }
+
+    if (hasImage) {
+      if (this.imageUploading()) {
+        return;
+      }
+      await this.sendImageMessage();
+      return;
+    }
+
     const now = Date.now();
     if (now - this.lastSentAt < 300) {
       return;
     }
     this.lastSentAt = now;
 
-    const content = this.newMessage();
+    const content = rawContent;
     this.newMessage.set('');
 
     try {
-      await this.socketService.sendMessage(this.groupId, this.channelId, content);
+      await this.socketService.sendMessage(this.groupId, this.channelId, trimmed);
     } catch (err) {
       console.error('Failed to send message', err);
       this.newMessage.set(content);
+    }
+  }
+
+  handleMessageImageSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input?.files && input.files.length ? input.files[0] : null;
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      this.notify.error('Only image files are allowed');
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+
+    this.clearPendingImage();
+    this.pendingImage.set(file);
+    if (typeof URL !== 'undefined') {
+      const previewUrl = URL.createObjectURL(file);
+      this.pendingImagePreviewUrl.set(previewUrl);
+    }
+
+    if (input) {
+      input.value = '';
+    }
+  }
+
+  async handleAvatarSelected(event: Event): Promise<void> {
+    if (!this.currentUser) {
+      return;
+    }
+    const input = event.target as HTMLInputElement;
+    const file = input?.files && input.files.length ? input.files[0] : null;
+    if (!file) {
+      return;
+    }
+    if (!file.type.startsWith('image/')) {
+      this.notify.error('Only image files are allowed');
+      if (input) {
+        input.value = '';
+      }
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+    this.avatarUploading.set(true);
+
+    try {
+      const response = await firstValueFrom(
+        this.http.post<{ success?: boolean; user?: User }>(
+          `http://localhost:3000/api/users/${this.currentUser.id}/avatar`,
+          formData
+        )
+      );
+      if (!response || response.success === false || !response.user) {
+        throw new Error('Failed to upload profile image');
+      }
+      this.currentUser = response.user;
+      this.authService.setCurrentUser(response.user);
+      this.notify.success('Profile image updated.');
+      this.loadGroupMembers();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to upload profile image';
+      this.notify.error(message);
+    } finally {
+      this.avatarUploading.set(false);
+      if (input) {
+        input.value = '';
+      }
+    }
+  }
+
+  onMessageMediaLoad(): void {
+    this.scrollMessagesToBottom();
+  }
+
+  private async sendImageMessage(): Promise<void> {
+    const file = this.pendingImage();
+    if (!this.currentUser || !file) {
+      return;
+    }
+    if (!this.groupId || !this.channelId) {
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('groupId', this.groupId);
+    formData.append('channelId', this.channelId);
+    formData.append('image', file);
+    const trimmed = this.newMessage().trim();
+    if (trimmed) {
+      formData.append('content', trimmed);
+    }
+
+    this.imageUploading.set(true);
+
+    try {
+      const response = await firstValueFrom(
+        this.http.post<{ success?: boolean; message?: any; error?: string }>(
+          'http://localhost:3000/api/messages/upload',
+          formData
+        )
+      );
+      if (!response || response.success === false) {
+        const errorMessage = response?.error || (response as any)?.message || 'Failed to send image message';
+        throw new Error(errorMessage);
+      }
+      this.newMessage.set('');
+      this.clearPendingImage();
+      this.lastSentAt = Date.now();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to send image message';
+      this.notify.error(message);
+    } finally {
+      this.imageUploading.set(false);
     }
   }
 
@@ -213,6 +375,8 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.callActive.set(false);
     this.callHost.set(null);
     this.stopCallTone();
+    this.newMessage.set('');
+    this.clearPendingImage();
 
     try {
       const joinInfo: JoinChannelResponse = await this.socketService.joinChannel(
@@ -291,10 +455,12 @@ export class ChatComponent implements OnInit, OnDestroy {
     return {
       id: message.id,
       channelId: message.channelId,
-      content: message.content,
+      content: message.content ?? '',
       timestamp: new Date(message.timestamp),
       userId: message.userId,
-      username: message.username
+      username: message.username,
+      avatarUrl: message.avatarUrl ?? null,
+      imageUrl: message.imageUrl ?? null
     };
   }
 

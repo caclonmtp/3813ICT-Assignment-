@@ -9,6 +9,8 @@ export interface ServerMessage {
   userId: string;
   username: string;
   content: string;
+  avatarUrl?: string | null;
+  imageUrl?: string | null;
   timestamp: number;
 }
 

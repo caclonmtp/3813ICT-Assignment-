@@ -1,7 +1,12 @@
 const { MongoClient } = require('mongodb');
 
-const DEFAULT_URI = process.env.MEAN_CHAT_MONGO_URI || 'mongodb://127.0.0.1:27017';
-const DEFAULT_DB = process.env.MEAN_CHAT_MONGO_DB || 'mean_chat';
+function resolveMongoUri() {
+  return process.env.MEAN_CHAT_MONGO_URI || 'mongodb://127.0.0.1:27017';
+}
+
+function resolveMongoDb() {
+  return process.env.MEAN_CHAT_MONGO_DB || 'mean_chat';
+}
 
 let client;
 let database;
@@ -22,12 +27,14 @@ function getDb() {
 async function initDb() {
   if (!initPromise) {
     initPromise = (async () => {
-      client = new MongoClient(DEFAULT_URI, {
+      const uri = resolveMongoUri();
+      client = new MongoClient(uri, {
         maxPoolSize: Number(process.env.MEAN_CHAT_MONGO_MAX_POOL || 10),
         serverSelectionTimeoutMS: Number(process.env.MEAN_CHAT_MONGO_TIMEOUT || 5000)
       });
       await client.connect();
-      database = client.db(DEFAULT_DB);
+      const dbName = resolveMongoDb();
+      database = client.db(dbName);
 
       await configureIndexes();
       await ensureDefaultSuperUser();
@@ -62,7 +69,8 @@ async function ensureDefaultSuperUser() {
       email: 'super@admin.com',
       password: '123',
       roles: ['super-admin'],
-      groups: []
+      groups: [],
+      avatarUrl: null
     });
   }
 }
@@ -135,7 +143,9 @@ async function createUser(user) {
     email: user.email,
     password: user.password,
     roles: Array.isArray(user.roles) && user.roles.length ? user.roles : ['user'],
-    groups: Array.isArray(user.groups) ? user.groups : []
+    groups: Array.isArray(user.groups) ? user.groups : [],
+    avatarUrl:
+      typeof user.avatarUrl === 'string' && user.avatarUrl.trim() ? user.avatarUrl.trim() : null
   };
   await getDb().collection('users').insertOne(payload);
   return getUserById(id);
@@ -147,11 +157,17 @@ async function updateUser(id, updates) {
   if (typeof payload.username === 'string') {
     payload.usernameLower = payload.username.toLowerCase();
   }
+  if (payload.avatarUrl === undefined) {
+    delete payload.avatarUrl;
+  } else if (typeof payload.avatarUrl === 'string') {
+    payload.avatarUrl = payload.avatarUrl.trim() || null;
+  }
   const updateDoc = {
     $set: payload
   };
   if (payload.roles === undefined) delete payload.roles;
   if (payload.groups === undefined) delete payload.groups;
+  if (payload.avatarUrl === undefined) delete payload.avatarUrl;
 
   await getDb()
     .collection('users')
@@ -377,7 +393,15 @@ async function listMessages({ groupId, channelId, limit = 50 } = {}) {
   return messages.map(mapMessage);
 }
 
-async function createMessage({ groupId, channelId, userId, username, content }) {
+async function createMessage({
+  groupId,
+  channelId,
+  userId,
+  username,
+  content = '',
+  avatarUrl,
+  imageUrl
+}) {
   await initDb();
   const message = {
     id: genId('m_'),
@@ -385,7 +409,9 @@ async function createMessage({ groupId, channelId, userId, username, content }) 
     channelId,
     userId,
     username,
-    content,
+    content: typeof content === 'string' ? content : '',
+    avatarUrl: typeof avatarUrl === 'string' && avatarUrl.trim() ? avatarUrl.trim() : null,
+    imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : null,
     timestamp: Date.now()
   };
   await getDb().collection('messages').insertOne(message);
@@ -426,7 +452,10 @@ async function importData(data) {
         email: user.email,
         password: user.password,
         roles: Array.isArray(user.roles) ? user.roles : [],
-        groups: Array.isArray(user.groups) ? user.groups : []
+        groups: Array.isArray(user.groups) ? user.groups : [],
+        avatarUrl: typeof user.avatarUrl === 'string' && user.avatarUrl.trim()
+          ? user.avatarUrl.trim()
+          : null
       }))
     );
   }
@@ -465,7 +494,15 @@ async function importData(data) {
         channelId: message.channelId,
         userId: message.userId,
         username: message.username,
-        content: message.content,
+        content: typeof message.content === 'string' ? message.content : '',
+        avatarUrl:
+          typeof message.avatarUrl === 'string' && message.avatarUrl.trim()
+            ? message.avatarUrl.trim()
+            : null,
+        imageUrl:
+          typeof message.imageUrl === 'string' && message.imageUrl.trim()
+            ? message.imageUrl.trim()
+            : null,
         timestamp: Number(message.timestamp ?? Date.now())
       }))
     );
@@ -513,4 +550,3 @@ module.exports = {
   importData,
   closeDb
 };
-

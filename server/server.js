@@ -1,15 +1,20 @@
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { initDb } = require('./lib/db');
 const { initSocketServer } = require('./lib/socket');
+const { ensureUploadDirs, UPLOAD_ROOT } = require('./lib/uploads');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 let httpServer;
 
+ensureUploadDirs();
+
 app.use(cors());
 app.use(express.json());
+app.use('/uploads', express.static(UPLOAD_ROOT));
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));

@@ -4,4 +4,5 @@ export interface User {
     email: string;
     roles: string[];
     groups: string[];
+    avatarUrl?: string | null;
 }

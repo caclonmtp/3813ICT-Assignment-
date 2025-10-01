@@ -1,4 +1,7 @@
 const express = require('express');
+const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 const {
   listUsers,
   getUserById,
@@ -10,8 +13,59 @@ const {
   findUserByUsername
 } = require('../lib/db');
 const { requireUser, isSuper } = require('../middleware/auth');
+const {
+  AVATAR_DIR,
+  ensureUploadDirs,
+  toPublicUrl,
+  resolveFilePathFromUrl
+} = require('../lib/uploads');
+
+const fsPromises = fs.promises;
 
 const router = express.Router();
+
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      ensureUploadDirs();
+      cb(null, AVATAR_DIR);
+    } catch (err) {
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = ext && /\.[a-z0-9]+$/.test(ext) ? ext : '';
+    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    cb(null, `avatar-${unique}${safeExt}`);
+  }
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      cb(new Error('Only image uploads are allowed'));
+    } else {
+      cb(null, true);
+    }
+  }
+});
+
+async function removeOldAvatar(avatarUrl) {
+  const previousPath = resolveFilePathFromUrl(avatarUrl);
+  if (!previousPath) {
+    return;
+  }
+  try {
+    await fsPromises.unlink(previousPath);
+  } catch (err) {
+    if (err && err.code !== 'ENOENT') {
+      console.warn('Failed to remove old avatar', err);
+    }
+  }
+}
 
 // All endpoints require authentication
 router.use(requireUser);
@@ -104,6 +158,39 @@ router.put('/:id', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+router.post('/:id/avatar', (req, res, next) => {
+  avatarUpload.single('avatar')(req, res, async err => {
+    if (err) {
+      const message = err instanceof multer.MulterError ? err.message : err?.message;
+      return res.status(400).json({ success: false, message: message || 'Failed to upload avatar' });
+    }
+
+    try {
+      if (!(isSuper(req.me) || req.me.id === req.params.id)) {
+        return res.status(403).json({ success: false, message: 'Forbidden' });
+      }
+
+      const user = await getUserById(req.params.id);
+      if (!user) {
+        return res.status(404).json({ success: false, message: 'User not found' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Avatar file required' });
+      }
+
+      const avatarUrl = toPublicUrl(req.file.path);
+      const updated = await updateUser(req.params.id, { avatarUrl });
+      await removeOldAvatar(user.avatarUrl);
+
+      const { password, ...safe } = updated;
+      return res.json({ success: true, user: safe });
+    } catch (uploadErr) {
+      next(uploadErr);
+    }
+  });
 });
 
 // PATCH /api/users/:id/roles (super only)

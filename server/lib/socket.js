@@ -115,7 +115,8 @@ function initSocketServer(httpServer) {
       socket.data.user = {
         id: user.id,
         username: user.username,
-        roles: Array.isArray(user.roles) ? user.roles : []
+        roles: Array.isArray(user.roles) ? user.roles : [],
+        avatarUrl: user.avatarUrl || null
       };
       socket.data.joinedChannels = new Set();
       socket.data.callChannels = new Set();
@@ -185,12 +186,20 @@ function initSocketServer(httpServer) {
           userId: user.id
         });
 
+        const freshUser = await getUserById(user.id);
+        if (freshUser) {
+          socket.data.user.username = freshUser.username;
+          socket.data.user.avatarUrl = freshUser.avatarUrl || null;
+        }
+
         const message = await createMessage({
           groupId: channel.groupId,
           channelId: channel.id,
           userId: user.id,
-          username: user.username,
-          content: trimmed
+          username: freshUser?.username || user.username,
+          content: trimmed,
+          avatarUrl: freshUser?.avatarUrl || user.avatarUrl || null,
+          imageUrl: null
         });
 
         emitNewMessage(message);

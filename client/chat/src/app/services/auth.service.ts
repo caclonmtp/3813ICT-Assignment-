@@ -48,6 +48,25 @@ export class AuthService {
         this.currentUserSubject.next(null);
     }
 
+    setCurrentUser(user: User): void {
+        if (!user) {
+            return;
+        }
+        this.storageService.setItem('currentUser', JSON.stringify(user));
+        this.currentUserSubject.next(user);
+    }
+
+    mergeCurrentUser(partial: Partial<User>): User | null {
+        const current = this.currentUserSubject.value;
+        if (!current) {
+            return null;
+        }
+        const updated = { ...current, ...partial } as User;
+        this.storageService.setItem('currentUser', JSON.stringify(updated));
+        this.currentUserSubject.next(updated);
+        return updated;
+    }
+
     isSuperAdmin(): boolean {
         return this.currentUserValue?.roles.includes('super-admin') || false;
     }
