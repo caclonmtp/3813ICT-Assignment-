@@ -15,6 +15,6 @@ async function requireUser(req, res, next) {
 }
 
 const isSuper = (u) => Array.isArray(u.roles) && u.roles.includes('super-admin');
-const isGroupAdmin = (u) => Array.isArray(u.roles) && u.roles.includes('group-admin');
+const isGroupAdmin = (u) => Array.isArray(u.roles) && (u.roles.includes('group-admin') || u.roles.includes('super-admin'));
 
 module.exports = { requireUser, isSuper, isGroupAdmin };

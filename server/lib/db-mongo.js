@@ -269,9 +269,28 @@ async function createGroup({ name, createdBy }) {
     createdBy,
     admins: [createdBy],
     members: [createdBy],
-    createdAt: now
+    createdAt: now,
+    avatarUrl: null
   };
   await getDb().collection('groups').insertOne(payload);
+  return getGroupById(id);
+}
+
+async function updateGroup(id, updates = {}) {
+  await initDb();
+  const payload = { ...updates };
+  if (typeof payload.name === 'string') {
+    payload.name = payload.name.trim();
+  }
+  if (payload.avatarUrl === undefined) {
+    delete payload.avatarUrl;
+  } else if (typeof payload.avatarUrl === 'string') {
+    payload.avatarUrl = payload.avatarUrl.trim() || null;
+  }
+
+  await getDb()
+    .collection('groups')
+    .updateOne({ id }, { $set: payload });
   return getGroupById(id);
 }
 
@@ -468,7 +487,10 @@ async function importData(data) {
         createdBy: group.createdBy || 'u_super',
         admins: Array.isArray(group.admins) ? group.admins : [],
         members: Array.isArray(group.members) ? group.members : [],
-        createdAt: Number(group.createdAt ?? Date.now())
+        createdAt: Number(group.createdAt ?? Date.now()),
+        avatarUrl: typeof group.avatarUrl === 'string' && group.avatarUrl.trim()
+          ? group.avatarUrl.trim()
+          : null
       }))
     );
   }
@@ -536,6 +558,7 @@ module.exports = {
   listGroupsForUser,
   getGroupById,
   createGroup,
+  updateGroup,
   deleteGroup,
   addGroupMember,
   removeGroupMember,

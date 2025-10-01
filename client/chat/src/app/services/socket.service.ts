@@ -14,6 +14,13 @@ export interface ServerMessage {
   timestamp: number;
 }
 
+export interface ChannelPresenceEvent {
+  channelId: string;
+  userId: string;
+  username: string;
+  avatarUrl?: string | null;
+}
+
 export interface CallUserEvent {
   channelId: string;
   userId: string;
@@ -34,11 +41,19 @@ export interface CallSessionEvent {
   startedAt?: number;
 }
 
+export interface CallEndedEvent {
+  channelId: string;
+  endedAt?: number;
+  endedBy?: { id: string; username: string } | null;
+}
+
 export interface JoinChannelResponse {
   messages: ServerMessage[];
+  channelMembers: ChannelPresenceEvent[];
   callActive: boolean;
   callParticipants: string[];
   callStartedBy?: { id: string; username: string } | null;
+  callStartedAt?: number | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -51,7 +66,9 @@ export class SocketService implements OnDestroy {
   private callLeaveSubject = new Subject<CallUserEvent>();
   private callSignalSubject = new Subject<CallSignalEvent>();
   private callStartedSubject = new Subject<CallSessionEvent>();
-  private callEndedSubject = new Subject<{ channelId: string }>();
+  private callEndedSubject = new Subject<CallEndedEvent>();
+  private channelUserJoinedSubject = new Subject<ChannelPresenceEvent>();
+  private channelUserLeftSubject = new Subject<ChannelPresenceEvent>();
 
   get messages$(): Observable<ServerMessage> {
     return this.messageSubject.asObservable();
@@ -73,8 +90,16 @@ export class SocketService implements OnDestroy {
     return this.callStartedSubject.asObservable();
   }
 
-  get callEnded$(): Observable<{ channelId: string }> {
+  get callEnded$(): Observable<CallEndedEvent> {
     return this.callEndedSubject.asObservable();
+  }
+
+  get channelUserJoined$(): Observable<ChannelPresenceEvent> {
+    return this.channelUserJoinedSubject.asObservable();
+  }
+
+  get channelUserLeft$(): Observable<ChannelPresenceEvent> {
+    return this.channelUserLeftSubject.asObservable();
   }
 
   ensureConnection(userId: string): void {
@@ -120,8 +145,16 @@ export class SocketService implements OnDestroy {
       this.callStartedSubject.next(payload);
     });
 
-    this.socket.on('call:ended', (payload: { channelId: string }) => {
+    this.socket.on('call:ended', (payload: CallEndedEvent) => {
       this.callEndedSubject.next(payload);
+    });
+
+    this.socket.on('channel:user-joined', (payload: ChannelPresenceEvent) => {
+      this.channelUserJoinedSubject.next(payload);
+    });
+
+    this.socket.on('channel:user-left', (payload: ChannelPresenceEvent) => {
+      this.channelUserLeftSubject.next(payload);
     });
 
     this.socket.on('connect_error', (err: Error) => {
@@ -137,6 +170,8 @@ export class SocketService implements OnDestroy {
       callActive?: boolean;
       callParticipants?: string[];
       callStartedBy?: { id: string; username: string } | null;
+      callStartedAt?: number | null;
+      channelMembers?: ChannelPresenceEvent[];
     }>(
       'joinChannel',
       { groupId, channelId }
@@ -151,9 +186,13 @@ export class SocketService implements OnDestroy {
 
     return {
       messages: response?.messages || [],
+      channelMembers: Array.isArray(response?.channelMembers)
+        ? (response?.channelMembers as ChannelPresenceEvent[])
+        : [],
       callActive: !!response?.callActive,
       callParticipants,
-      callStartedBy: response?.callStartedBy ?? null
+      callStartedBy: response?.callStartedBy ?? null,
+      callStartedAt: response?.callStartedAt ?? null
     };
   }
 

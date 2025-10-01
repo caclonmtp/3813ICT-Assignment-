@@ -34,4 +34,10 @@ export class GroupService {
     deleteGroup(id: string): Observable<any> {
         return this.http.delete(`${this.apiUrl}/${id}`);
     }
+
+    uploadGroupAvatar(groupId: string, file: File): Observable<{ success?: boolean; group?: Group }> {
+        const formData = new FormData();
+        formData.append('avatar', file);
+        return this.http.post<{ success?: boolean; group?: Group }>(`${this.apiUrl}/${groupId}/avatar`, formData);
+    }
 }

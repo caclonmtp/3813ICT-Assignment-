@@ -10,6 +10,8 @@ const {
 let ioInstance;
 // Map of channelId -> { participants: Set<string>, startedBy: { id: string, username: string }, startedAt: number }
 const activeCalls = new Map();
+// Map of channelId -> Map<userId, { userId, username, avatarUrl }>
+const channelMembers = new Map();
 
 function channelRoom(channelId) {
   return `channel:${channelId}`;
@@ -85,6 +87,24 @@ function broadcastCallEvent(channelId, event, payload, exceptSocket) {
   }
 }
 
+function broadcastChannelEvent(channelId, event, payload, exceptSocket) {
+  if (!ioInstance) return;
+  const room = channelRoom(channelId);
+  if (exceptSocket) {
+    exceptSocket.to(room).emit(event, payload);
+  } else {
+    ioInstance.to(room).emit(event, payload);
+  }
+}
+
+function toPresencePayload(user) {
+  return {
+    userId: user.id,
+    username: user.username,
+    avatarUrl: user.avatarUrl || null
+  };
+}
+
 function initSocketServer(httpServer) {
   if (ioInstance) {
     return ioInstance;
@@ -129,6 +149,45 @@ function initSocketServer(httpServer) {
   ioInstance.on('connection', socket => {
     const { user } = socket.data;
 
+    const leaveChannel = channelId => {
+      if (!channelId || !socket.data.joinedChannels.has(channelId)) {
+        return { removed: false, members: null };
+      }
+
+      socket.leave(channelRoom(channelId));
+      socket.data.joinedChannels.delete(channelId);
+
+      const members = channelMembers.get(channelId);
+      let removed = false;
+      let memberList = null;
+      if (members) {
+        removed = members.delete(socket.data.user.id);
+        memberList = Array.from(members.values()).map(member => ({
+          ...member,
+          channelId
+        }));
+        if (!members.size) {
+          channelMembers.delete(channelId);
+        }
+      }
+
+      if (removed) {
+        broadcastChannelEvent(
+          channelId,
+          'channel:user-left',
+          {
+            channelId,
+            userId: socket.data.user.id,
+            username: socket.data.user.username,
+            avatarUrl: socket.data.user.avatarUrl || null
+          },
+          socket
+        );
+      }
+
+      return { removed, members: memberList };
+    };
+
     socket.on('joinChannel', async (payload = {}, ack) => {
       try {
         const { channelId, groupId } = payload;
@@ -142,18 +201,54 @@ function initSocketServer(httpServer) {
         socket.data.joinedChannels.add(channel.id);
         const messages = await listMessages({ channelId: channel.id });
 
+        const freshUser = await getUserById(user.id);
+        if (freshUser) {
+          socket.data.user.username = freshUser.username;
+          socket.data.user.avatarUrl = freshUser.avatarUrl || null;
+        }
+
+        let members = channelMembers.get(channel.id);
+        if (!members) {
+          members = new Map();
+          channelMembers.set(channel.id, members);
+        }
+        const wasMember = members.has(socket.data.user.id);
+        const presencePayload = toPresencePayload(socket.data.user);
+        members.set(socket.data.user.id, presencePayload);
+        const memberList = Array.from(members.values()).map(member => ({
+          ...member,
+          channelId: channel.id
+        }));
+
         const callState = activeCalls.get(channel.id);
         const callActive = !!callState && callState.participants.size > 0;
         const callParticipants = callActive ? Array.from(callState.participants) : [];
         const callStartedBy = callActive ? callState.startedBy : null;
+        const callStartedAt = callActive ? callState.startedAt : null;
+
+        if (!wasMember) {
+          broadcastChannelEvent(
+            channel.id,
+            'channel:user-joined',
+            {
+              channelId: channel.id,
+              userId: socket.data.user.id,
+              username: socket.data.user.username,
+              avatarUrl: socket.data.user.avatarUrl || null
+            },
+            socket
+          );
+        }
 
         safeAck(ack, {
           success: true,
           channelId: channel.id,
           messages,
+          channelMembers: memberList,
           callActive,
           callParticipants,
-          callStartedBy
+          callStartedBy,
+          callStartedAt
         });
       } catch (err) {
         safeAck(ack, { success: false, message: err.message || 'Failed to join channel' });
@@ -162,11 +257,12 @@ function initSocketServer(httpServer) {
 
     socket.on('leaveChannel', (payload = {}, ack) => {
       const { channelId } = payload;
-      if (channelId && socket.data.joinedChannels.has(channelId)) {
-        socket.leave(channelRoom(channelId));
-        socket.data.joinedChannels.delete(channelId);
-      }
-      safeAck(ack, { success: true, channelId });
+      const result = leaveChannel(channelId);
+      safeAck(ack, {
+        success: true,
+        channelId,
+        channelMembers: result.members || []
+      });
     });
 
     socket.on('chat:message', async (payload = {}, ack) => {
@@ -214,7 +310,7 @@ function initSocketServer(httpServer) {
         const { channelId, groupId } = payload;
         if (!channelId) throw new Error('channelId required');
 
-        await ensureChannelAccess({ channelId, groupId, userId: user.id });
+        const { channel } = await ensureChannelAccess({ channelId, groupId, userId: user.id });
 
         socket.join(callRoom(channelId));
         socket.data.callChannels.add(channelId);
@@ -225,7 +321,8 @@ function initSocketServer(httpServer) {
           callState = {
             participants: new Set(),
             startedBy: { id: user.id, username: user.username },
-            startedAt: Date.now()
+            startedAt: Date.now(),
+            groupId: channel.groupId
           };
           activeCalls.set(channelId, callState);
           isNewCall = true;
@@ -246,6 +343,20 @@ function initSocketServer(httpServer) {
             username: user.username,
             startedAt: callState.startedAt
           });
+          try {
+            const systemMessage = await createMessage({
+              groupId: channel.groupId,
+              channelId: channel.id,
+              userId: 'system',
+              username: 'System',
+              content: `${user.username} started a call.`,
+              avatarUrl: null,
+              imageUrl: null
+            });
+            emitNewMessage(systemMessage);
+          } catch (err) {
+            console.warn('Failed to record call start message', err);
+          }
         }
 
         safeAck(ack, { success: true, participants: others });
@@ -254,13 +365,13 @@ function initSocketServer(httpServer) {
       }
     });
 
-    socket.on('call:leave', (payload = {}, ack) => {
+    socket.on('call:leave', async (payload = {}, ack) => {
       const { channelId } = payload;
       if (!channelId) {
         safeAck(ack, { success: true, callEnded: false });
         return;
       }
-      const ended = handleCallLeave(socket, channelId);
+      const { ended } = await handleCallLeave(socket, channelId);
       safeAck(ack, { success: true, callEnded: ended });
     });
 
@@ -276,26 +387,34 @@ function initSocketServer(httpServer) {
     });
 
     socket.on('disconnect', () => {
+      for (const channelId of Array.from(socket.data.joinedChannels)) {
+        leaveChannel(channelId);
+      }
       for (const channelId of Array.from(socket.data.callChannels)) {
-        handleCallLeave(socket, channelId);
+        void handleCallLeave(socket, channelId);
       }
     });
   });
 
-  function handleCallLeave(socket, channelId) {
+  async function handleCallLeave(socket, channelId) {
     if (!socket.data.callChannels.has(channelId)) {
-      return false;
+      return { ended: false, endedBy: null };
     }
     socket.leave(callRoom(channelId));
     socket.data.callChannels.delete(channelId);
 
     const callState = activeCalls.get(channelId);
     let ended = false;
+    let endedBy = null;
     if (callState) {
       callState.participants.delete(socket.data.user.id);
       if (!callState.participants.size) {
         activeCalls.delete(channelId);
         ended = true;
+        endedBy = {
+          id: socket.data.user.id,
+          username: socket.data.user.username
+        };
       }
     }
 
@@ -305,10 +424,34 @@ function initSocketServer(httpServer) {
     }, socket);
 
     if (ended && ioInstance) {
-      ioInstance.to(channelRoom(channelId)).emit('call:ended', { channelId });
+      const endedAt = Date.now();
+      ioInstance.to(channelRoom(channelId)).emit('call:ended', {
+        channelId,
+        endedAt,
+        endedBy
+      });
+      try {
+        const channel = await getChannelById(channelId);
+        if (channel) {
+          const message = await createMessage({
+            groupId: channel.groupId,
+            channelId: channel.id,
+            userId: 'system',
+            username: 'System',
+            content: endedBy?.username
+              ? `Call ended when ${endedBy.username} left.`
+              : 'Call ended.',
+            avatarUrl: null,
+            imageUrl: null
+          });
+          emitNewMessage(message);
+        }
+      } catch (err) {
+        console.warn('Failed to record call end message', err);
+      }
     }
 
-    return ended;
+    return { ended, endedBy };
   }
 
   return ioInstance;

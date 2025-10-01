@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, ElementRef, OnInit, ViewChild } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { GroupService } from '../../services/group.service';
 import { UserService } from '../../services/user.service';
@@ -29,11 +29,14 @@ export class GroupAdminComponent implements OnInit {
     groupMembers: User[] = [];
     availableUsers: User[] = [];
 
+    @ViewChild('groupAvatarPicker') groupAvatarPicker?: ElementRef<HTMLInputElement>;
+
     newGroupName: string = '';
     newChannelName: string = '';
     showCreateGroup: boolean = false;
     showCreateChannel: boolean = false;
     showAddMember: boolean = false;
+    groupAvatarUploading = false;
 
     constructor(
         private authService: AuthService,
@@ -202,5 +205,75 @@ export class GroupAdminComponent implements OnInit {
 
     canDeleteGroup(group: Group): boolean {
         return group.createdBy === this.currentUser?.id || this.authService.isSuperAdmin();
+    }
+
+    canManageGroup(group: Group): boolean {
+        if (!this.currentUser) return false;
+        const meId = this.currentUser.id;
+        return this.authService.isSuperAdmin() || group.createdBy === meId || (group.admins || []).includes(meId);
+    }
+
+    mediaUrl(url?: string | null): string | null {
+        if (!url) return null;
+        if (/^https?:\/\//i.test(url)) {
+            return url;
+        }
+        if (url.startsWith('//')) {
+            return `${typeof window !== 'undefined' ? window.location.protocol : 'http:'}${url}`;
+        }
+        if (url.startsWith('/')) {
+            return `http://localhost:3000${url}`;
+        }
+        return `http://localhost:3000/${url}`;
+    }
+
+    groupInitial(group: Group | null): string {
+        if (!group?.name) return '#';
+        return group.name.charAt(0).toUpperCase();
+    }
+
+    openGroupAvatarPicker(): void {
+        this.groupAvatarPicker?.nativeElement?.click();
+    }
+
+    async handleGroupAvatarSelected(event: Event): Promise<void> {
+        if (!this.selectedGroup) return;
+        const input = event.target as HTMLInputElement;
+        const file = input?.files && input.files.length ? input.files[0] : null;
+        if (!file) {
+            return;
+        }
+        if (!file.type.startsWith('image/')) {
+            this.notify.error('Only image files are allowed');
+            if (input) input.value = '';
+            return;
+        }
+
+        this.groupAvatarUploading = true;
+        this.groupService.uploadGroupAvatar(this.selectedGroup.id, file).subscribe({
+            next: (response) => {
+                if (!response || response.success === false || !response.group) {
+                    throw new Error('Failed to upload group avatar');
+                }
+                this.applyUpdatedGroup(response.group);
+                this.notify.success('Group avatar updated.');
+                this.groupAvatarUploading = false;
+                if (input) input.value = '';
+            },
+            error: (err) => {
+                const message = err?.error?.message || err?.message || 'Failed to upload group avatar';
+                this.notify.error(message);
+                if (input) input.value = '';
+                this.groupAvatarUploading = false;
+            }
+        });
+    }
+
+    private applyUpdatedGroup(updated: Group): void {
+        this.myGroups = this.myGroups.map(group => (group.id === updated.id ? { ...group, ...updated } : group));
+        if (this.selectedGroup?.id === updated.id) {
+            this.selectedGroup = { ...this.selectedGroup, ...updated };
+            this.loadGroupDetails(this.selectedGroup);
+        }
     }
 }

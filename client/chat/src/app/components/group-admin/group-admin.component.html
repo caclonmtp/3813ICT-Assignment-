@@ -47,6 +47,25 @@
                 </button>
             </div>
 
+            <div class="group-avatar-section">
+                <div class="group-avatar-display">
+                    <ng-container *ngIf="mediaUrl(selectedGroup?.avatarUrl) as avatarUrl; else groupAvatarFallback">
+                        <img [src]="avatarUrl" alt="Group avatar">
+                    </ng-container>
+                    <ng-template #groupAvatarFallback>
+                        <div class="group-avatar-initial">{{ groupInitial(selectedGroup) }}</div>
+                    </ng-template>
+                </div>
+                <button *ngIf="canManageGroup(selectedGroup)"
+                        type="button"
+                        class="btn btn-sm btn-secondary"
+                        (click)="openGroupAvatarPicker()"
+                        [disabled]="groupAvatarUploading">
+                    {{ groupAvatarUploading ? 'Uploading…' : 'Change Avatar' }}
+                </button>
+                <input #groupAvatarPicker type="file" class="sr-only" accept="image/*" (change)="handleGroupAvatarSelected($event)">
+            </div>
+
             <div class="section">
                 <div class="section-header">
                     <h3>Channels</h3>

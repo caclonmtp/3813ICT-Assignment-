@@ -8,10 +8,6 @@
             <span class="member-count">{{ groupMembers.length }} members</span>
         </div>
         <div class="header-actions">
-            <button class="btn-avatar" type="button" (click)="avatarPicker?.nativeElement.click()" [disabled]="avatarUploading()">
-                {{ avatarUploading() ? 'Uploading…' : 'Update Avatar' }}
-            </button>
-            <input #avatarPicker type="file" class="sr-only" accept="image/*" (change)="handleAvatarSelected($event)">
             <button class="btn-info" type="button">ℹ️ Info</button>
             <button class="btn-admin" type="button" *ngIf="canManageGroup" (click)="goToGroupAdmin()">Manage Group</button>
         </div>
@@ -23,7 +19,7 @@
             <div class="members-list">
                 <div *ngFor="let member of groupMembers" class="member-item">
                     <div class="member-avatar">
-                        <img *ngIf="member.avatarUrl" [src]="member.avatarUrl" [alt]="member.username + ' avatar'">
+                        <img *ngIf="member.avatarUrl" [src]="mediaUrl(member.avatarUrl)" [alt]="member.username + ' avatar'">
                         <span *ngIf="!member.avatarUrl">{{ member.username.charAt(0).toUpperCase() }}</span>
                     </div>
                     <div class="member-info">
@@ -52,6 +48,19 @@
                 </span>
             </div>
 
+            <div class="channel-presence" *ngIf="onlineMembers().length">
+                <span class="presence-title">In channel · {{ onlineMembers().length }}</span>
+                <div class="presence-list">
+                    <div class="presence-item" *ngFor="let member of onlineMembers()">
+                        <div class="presence-avatar">
+                            <img *ngIf="member.avatarUrl" [src]="mediaUrl(member.avatarUrl)" [alt]="member.username + ' avatar'">
+                            <span *ngIf="!member.avatarUrl">{{ member.username.charAt(0).toUpperCase() }}</span>
+                        </div>
+                        <span class="presence-name">{{ member.username }}</span>
+                    </div>
+                </div>
+            </div>
+
             <div class="channel-error" *ngIf="channelError()">
                 {{ channelError() }}
             </div>
@@ -63,21 +72,22 @@
                 
                 <div *ngFor="let message of messages()" 
                      class="message"
+                     [class.system-message]="message.userId === 'system'"
                      [class.own-message]="message.userId === currentUser?.id"
                      [@messageFade]>
-                    <div class="message-avatar">
-                        <img *ngIf="message.avatarUrl" [src]="message.avatarUrl" [alt]="message.username + ' avatar'">
+                    <div class="message-avatar" *ngIf="message.userId !== 'system'">
+                        <img *ngIf="message.avatarUrl" [src]="mediaUrl(message.avatarUrl)" [alt]="message.username + ' avatar'">
                         <span *ngIf="!message.avatarUrl">{{ message.username.charAt(0).toUpperCase() }}</span>
                     </div>
                     <div class="message-content">
                         <div class="message-header">
                             <span class="message-author">{{ message.username }}</span>
-                            <span class="message-time">{{ formatTime(message.timestamp) }}</span>
+                            <span class="message-time">{{ formatTimestamp(message.timestamp) }}</span>
                         </div>
                         <div class="message-text" *ngIf="message.content">{{ message.content }}</div>
                         <div class="message-image" *ngIf="message.imageUrl">
-                            <a [href]="message.imageUrl" target="_blank" rel="noopener">
-                                <img [src]="message.imageUrl" [alt]="'Image from ' + message.username" (load)="onMessageMediaLoad()">
+                            <a [href]="mediaUrl(message.imageUrl)" target="_blank" rel="noopener">
+                                <img [src]="mediaUrl(message.imageUrl)" [alt]="'Image from ' + message.username" (load)="onMessageMediaLoad()">
                             </a>
                         </div>
                     </div>
@@ -86,7 +96,7 @@
 
             <div class="message-input-container">
                 <div class="message-input-actions-top">
-                    <button class="btn-attach" type="button" (click)="imagePicker?.nativeElement.click()" [disabled]="imageUploading()">
+                    <button class="btn-attach" type="button" (click)="openImagePicker()" [disabled]="imageUploading()">
                         📎 Add Image
                     </button>
                     <div class="selected-image" *ngIf="pendingImage()">

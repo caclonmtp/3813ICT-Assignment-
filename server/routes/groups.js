@@ -1,4 +1,8 @@
 const express = require('express');
+const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
+const sharp = require('sharp');
 const {
   listGroups,
   listGroupsForUser,
@@ -8,11 +12,62 @@ const {
   addGroupMember,
   removeGroupMember,
   getChannelById,
-  updateChannelBans
+  updateChannelBans,
+  updateGroup
 } = require('../lib/db');
 const { requireUser, isSuper, isGroupAdmin } = require('../middleware/auth');
+const {
+  GROUP_AVATAR_DIR,
+  ensureUploadDirs,
+  toPublicUrl,
+  resolveFilePathFromUrl
+} = require('../lib/uploads');
 
 const router = express.Router();
+
+const fsPromises = fs.promises;
+
+const groupAvatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    try {
+      ensureUploadDirs();
+      cb(null, GROUP_AVATAR_DIR);
+    } catch (err) {
+      cb(err);
+    }
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname || '').toLowerCase();
+    const safeExt = ext && /\.[a-z0-9]+$/.test(ext) ? ext : '';
+    const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const groupId = req.params?.groupId || 'group';
+    cb(null, `group-${groupId}-${unique}${safeExt}`);
+  }
+});
+
+const groupAvatarUpload = multer({
+  storage: groupAvatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      cb(new Error('Only image uploads are allowed'));
+    } else {
+      cb(null, true);
+    }
+  }
+});
+
+async function removeGroupAvatar(avatarUrl) {
+  const previousPath = resolveFilePathFromUrl(avatarUrl);
+  if (!previousPath) return;
+  try {
+    await fsPromises.unlink(previousPath);
+  } catch (err) {
+    if (!err || err.code !== 'ENOENT') {
+      console.warn('Failed to remove old group avatar', err);
+    }
+  }
+}
 
 router.use(requireUser);
 
@@ -49,6 +104,62 @@ router.post('/', async (req, res, next) => {
   } catch (err) {
     next(err);
   }
+});
+
+router.post('/:groupId/avatar', (req, res, next) => {
+  groupAvatarUpload.single('avatar')(req, res, async err => {
+    if (err) {
+      const message = err instanceof multer.MulterError ? err.message : err?.message;
+      return res.status(400).json({ success: false, message: message || 'Failed to upload group avatar' });
+    }
+
+    try {
+      const groupId = req.params.groupId;
+      const group = await getGroupById(groupId);
+      if (!group) {
+        return res.status(404).json({ success: false, message: 'Group not found' });
+      }
+
+      const isManager =
+        isSuper(req.me) ||
+        group.createdBy === req.me.id ||
+        (Array.isArray(group.admins) && group.admins.includes(req.me.id));
+
+      if (!isManager) {
+        return res.status(403).json({ success: false, message: 'Admins only' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ success: false, message: 'Avatar file required' });
+      }
+
+      try {
+        const buffer = await sharp(req.file.path)
+          .rotate()
+          .resize(256, 256, { fit: 'cover' })
+          .toFormat('jpeg', { quality: 80 })
+          .toBuffer();
+
+        const finalPath = req.file.path.replace(/\.[^.]+$/, '.jpg');
+        await fsPromises.writeFile(finalPath, buffer);
+        if (finalPath !== req.file.path) {
+          await fsPromises.unlink(req.file.path).catch(() => {});
+          req.file.path = finalPath;
+        }
+      } catch (imageErr) {
+        await fsPromises.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({ success: false, message: 'Unable to process group avatar image' });
+      }
+
+      const avatarUrl = toPublicUrl(req.file.path);
+      const updatedGroup = await updateGroup(groupId, { avatarUrl });
+      await removeGroupAvatar(group.avatarUrl);
+
+      return res.json({ success: true, group: updatedGroup });
+    } catch (uploadErr) {
+      next(uploadErr);
+    }
+  });
 });
 
 // DELETE /api/groups/:groupId

@@ -46,6 +46,10 @@ export class CallComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
   private peerConnections = new Map<string, RTCPeerConnection>();
   private remoteParticipantsMap = new Map<string, RemoteParticipant>();
+  private audioCtx: AudioContext | null = null;
+  private readonly analyserNodes = new Map<string, { analyser: AnalyserNode; source: MediaStreamAudioSourceNode; rafId: number }>();
+  private readonly LOCAL_PARTICIPANT_ID = '__local_speaker__';
+  private speakingParticipants = signal(new Set<string>());
 
   readonly inCall = signal(false);
   readonly isCallLoading = signal(false);
@@ -55,8 +59,11 @@ export class CallComponent implements OnInit, OnDestroy {
   readonly remoteParticipants = signal<RemoteParticipant[]>([]);
   readonly callActive = signal(false);
   readonly callHost = signal<string | null>(null);
+  readonly micMuted = signal(false);
+  readonly cameraOff = signal(false);
 
   readonly isScreenSharing = computed(() => !!this.screenStream());
+  readonly isLocalSpeaking = computed(() => this.speakingParticipants().has(this.LOCAL_PARTICIPANT_ID));
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -109,13 +116,8 @@ export class CallComponent implements OnInit, OnDestroy {
     this.destroy$.next();
     this.destroy$.complete();
     void this.endCall(false, false);
-    if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close().catch(() => {});
-    }
+    this.stopMonitoringAll();
   }
-
-  readonly audioEnabled = signal(true);
-  private audioContext?: AudioContext;
 
   private async handleRouteChange(params: Params): Promise<void> {
     const newGroupId = params['groupId'];
@@ -171,18 +173,45 @@ export class CallComponent implements OnInit, OnDestroy {
     await this.endCall(true, true);
   }
 
-  toggleAudio(): void {
-    if (!this.audioContext) {
+  toggleMic(): void {
+    const stream = this.localStream();
+    if (!stream) {
+      this.notify.error('Microphone unavailable. Join the call first.');
       return;
     }
-
-    if (this.audioEnabled()) {
-      this.audioEnabled.set(false);
-      this.audioContext.suspend().catch(() => {});
-    } else {
-      this.audioEnabled.set(true);
-      this.audioContext.resume().catch(() => {});
+    const audioTracks = stream.getAudioTracks();
+    if (!audioTracks.length) {
+      this.notify.error('No microphone detected.');
+      return;
     }
+    const newMuted = !this.micMuted();
+    audioTracks.forEach(track => (track.enabled = !newMuted));
+    this.micMuted.set(newMuted);
+    this.notify.info(newMuted ? 'Microphone muted' : 'Microphone unmuted');
+    if (newMuted) {
+      this.setSpeaking(this.LOCAL_PARTICIPANT_ID, false);
+    } else {
+      this.monitorStreamLevel(this.LOCAL_PARTICIPANT_ID, stream);
+    }
+  }
+
+  toggleCamera(): void {
+    const stream = this.localStream();
+    if (!stream) {
+      this.notify.error('Camera unavailable. Join the call first.');
+      return;
+    }
+    const videoTracks = stream.getVideoTracks();
+    if (!videoTracks.length) {
+      this.notify.error('No camera detected.');
+      return;
+    }
+    const newOff = !this.cameraOff();
+    videoTracks.forEach(track => (track.enabled = !newOff));
+    this.cameraOff.set(newOff);
+    this.notify.info(newOff ? 'Camera turned off' : 'Camera enabled');
+    // Restart analyser so voice detection keeps working even after toggling camera
+    this.monitorStreamLevel(this.LOCAL_PARTICIPANT_ID, stream);
   }
 
   async toggleScreenShare(): Promise<void> {
@@ -229,14 +258,11 @@ export class CallComponent implements OnInit, OnDestroy {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       this.localStream.set(stream);
-      if (!this.audioContext) {
-        try {
-          const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-          this.audioContext = Ctx ? new Ctx() : undefined;
-        } catch (_) {
-          this.audioContext = undefined;
-        }
-      }
+      this.micMuted.set(false);
+      this.cameraOff.set(false);
+      stream.getAudioTracks().forEach(track => (track.enabled = true));
+      stream.getVideoTracks().forEach(track => (track.enabled = true));
+      this.monitorStreamLevel(this.LOCAL_PARTICIPANT_ID, stream);
 
       const { participants } = await this.socketService.joinCall(this.groupId, this.channelId);
       participants
@@ -279,6 +305,8 @@ export class CallComponent implements OnInit, OnDestroy {
       return null;
     });
     this.cleanupLocalStream();
+    this.micMuted.set(false);
+    this.cameraOff.set(false);
 
     this.peerConnections.forEach(pc => {
       try {
@@ -393,6 +421,9 @@ export class CallComponent implements OnInit, OnDestroy {
         const [stream] = event.streams;
         participant.stream = stream;
         this.updateRemoteParticipants();
+        if (stream) {
+          this.monitorStreamLevel(userId, stream);
+        }
       };
 
       pc.onconnectionstatechange = () => {
@@ -450,6 +481,7 @@ export class CallComponent implements OnInit, OnDestroy {
     if (participant) {
       this.remoteParticipantsMap.delete(userId);
       this.updateRemoteParticipants();
+      this.stopMonitoring(userId);
     }
   }
 
@@ -502,7 +534,121 @@ export class CallComponent implements OnInit, OnDestroy {
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       this.localStream.set(null);
+      this.stopMonitoring(this.LOCAL_PARTICIPANT_ID);
     }
+  }
+
+  private monitorStreamLevel(id: string, stream: MediaStream): void {
+    const AudioCtor = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtor) {
+      return;
+    }
+
+    if (!this.audioCtx || this.audioCtx.state === 'closed') {
+      try {
+        this.audioCtx = new AudioCtor();
+      } catch (err) {
+        console.warn('Failed to create audio context', err);
+        this.audioCtx = null;
+        return;
+      }
+    }
+
+    if (!stream.getAudioTracks().length) {
+      this.setSpeaking(id, false);
+      this.stopMonitoring(id);
+      return;
+    }
+
+    this.stopMonitoring(id);
+
+    try {
+      const source = this.audioCtx!.createMediaStreamSource(stream);
+      const analyser = this.audioCtx!.createAnalyser();
+      analyser.fftSize = 512;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.fftSize);
+
+      const detect = () => {
+        analyser.getByteTimeDomainData(data);
+        let sum = 0;
+        for (let i = 0; i < data.length; i += 1) {
+          const sample = (data[i] - 128) / 128;
+          sum += sample * sample;
+        }
+        const rms = Math.sqrt(sum / data.length);
+        const speaking = rms > 0.015 && this.tracksEnabled(stream.getAudioTracks());
+        this.setSpeaking(id, speaking);
+        const entry = this.analyserNodes.get(id);
+        if (entry) {
+          entry.rafId = requestAnimationFrame(detect);
+        }
+      };
+
+      const rafId = requestAnimationFrame(detect);
+      this.analyserNodes.set(id, { analyser, source, rafId });
+    } catch (err) {
+      console.warn('Unable to monitor audio stream', err);
+    }
+  }
+
+  private stopMonitoring(id: string): void {
+    const entry = this.analyserNodes.get(id);
+    if (!entry) {
+      return;
+    }
+    cancelAnimationFrame(entry.rafId);
+    try {
+      entry.source.disconnect();
+    } catch (_) {
+      // ignore disconnect errors
+    }
+    this.analyserNodes.delete(id);
+    this.setSpeaking(id, false);
+  }
+
+  private stopMonitoringAll(): void {
+    Array.from(this.analyserNodes.keys()).forEach(id => this.stopMonitoring(id));
+    if (this.audioCtx && this.audioCtx.state !== 'closed') {
+      this.audioCtx.close().catch(() => {});
+    }
+    this.audioCtx = null;
+    this.speakingParticipants.set(new Set());
+  }
+
+  private setSpeaking(id: string, speaking: boolean): void {
+    this.speakingParticipants.update(current => {
+      const next = new Set(current);
+      if (speaking) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  private tracksEnabled(tracks: MediaStreamTrack[]): boolean {
+    if (!tracks.length) {
+      return false;
+    }
+    return tracks.some(track => track.enabled);
+  }
+
+  isParticipantMuted(userId: string): boolean {
+    const stream = this.remoteParticipantsMap.get(userId)?.stream;
+    if (!stream) {
+      return false;
+    }
+    const audioTracks = stream.getAudioTracks();
+    if (!audioTracks.length) {
+      return true;
+    }
+    return audioTracks.every(track => !track.enabled);
+  }
+
+  isParticipantSpeaking(userId: string): boolean {
+    return this.speakingParticipants().has(userId);
   }
 
   private async handleOffer(remoteUserId: string, sdp: RTCSessionDescriptionInit, username?: string): Promise<void> {

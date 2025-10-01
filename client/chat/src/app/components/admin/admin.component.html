@@ -127,7 +127,7 @@
             </label>
             <label class="checkbox" *ngIf="selectedGroup">
                 <input type="checkbox" [(ngModel)]="addToSelectedGroup" [disabled]="createUserLoading">
-                <span>Add to {{ selectedGroup?.name }}</span>
+                <span>Add to {{ selectedGroup.name }}</span>
             </label>
         </div>
         <div class="form-error" *ngIf="createUserError">{{ createUserError }}</div>

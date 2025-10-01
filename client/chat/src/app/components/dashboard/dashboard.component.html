@@ -4,6 +4,45 @@
             <h2>Chat Application</h2>
         </div>
         <div class="navbar-user">
+            <button *ngIf="currentUser" type="button" class="profile-icon-button" (click)="toggleProfileMenu($event)">
+                <ng-container *ngIf="mediaUrl(currentUser?.avatarUrl) as avatarUrl; else navInitial">
+                    <img class="avatar-image" [src]="avatarUrl" alt="Profile avatar">
+                </ng-container>
+                <ng-template #navInitial>
+                    <div class="avatar-initial">{{ currentUserInitial }}</div>
+                </ng-template>
+            </button>
+
+            <div class="profile-menu" *ngIf="profileMenuOpen" (click)="$event.stopPropagation()">
+                <h3>My Profile</h3>
+                <div class="avatar-preview">
+                    <ng-container *ngIf="mediaUrl(currentUser?.avatarUrl) as avatarUrl; else previewInitial">
+                        <img [src]="avatarUrl" alt="Profile avatar">
+                    </ng-container>
+                    <ng-template #previewInitial>
+                        <div class="avatar-initial large">{{ currentUserInitial }}</div>
+                    </ng-template>
+                    <button type="button" class="btn btn-avatar" (click)="openAvatarPicker($event)" [disabled]="avatarUploading">
+                        {{ avatarUploading ? 'Uploading…' : 'Change Avatar' }}
+                    </button>
+                    <input #avatarPicker type="file" class="sr-only" accept="image/*" (change)="handleAvatarSelected($event)">
+                </div>
+                <form (ngSubmit)="saveProfileChanges()">
+                    <label>
+                        Username
+                        <input type="text" [(ngModel)]="editableUser.username" name="profileUsername" required [disabled]="profileSaving || avatarUploading">
+                    </label>
+                    <label>
+                        Email
+                        <input type="email" [(ngModel)]="editableUser.email" name="profileEmail" required [disabled]="profileSaving">
+                    </label>
+                    <div class="profile-actions">
+                        <button type="submit" class="btn btn-save" [disabled]="profileSaving || avatarUploading">Save</button>
+                        <button type="button" class="btn btn-cancel" (click)="cancelProfileChanges($event)" [disabled]="profileSaving || avatarUploading">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
             <span class="username">Welcome, {{ currentUser?.username }}</span>
             <div class="user-roles">
                 <span *ngFor="let role of currentUser?.roles" class="role-badge">
@@ -32,8 +71,18 @@
                      (click)="selectGroup(group)"
                      tabindex="0" role="button"
                      (keydown.enter)="selectGroup(group)">
-                    <i class="group-icon">👥</i>
-                    <span>{{ group.name }}</span>
+                    <div class="group-item-avatar">
+                        <ng-container *ngIf="mediaUrl(group.avatarUrl) as groupAvatarUrl; else sidebarFallback">
+                            <img [src]="groupAvatarUrl" [alt]="group.name + ' avatar'">
+                        </ng-container>
+                        <ng-template #sidebarFallback>
+                            <span>{{ groupInitial(group) }}</span>
+                        </ng-template>
+                    </div>
+                    <div class="group-item-info">
+                        <span class="group-item-name">{{ group.name }}</span>
+                        <span class="group-item-members">{{ group.members.length }} members</span>
+                    </div>
                 </div>
                 <div *ngIf="groups.length === 0" class="no-groups">
                     <p>You're not a member of any groups yet.</p>

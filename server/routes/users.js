@@ -19,6 +19,7 @@ const {
   toPublicUrl,
   resolveFilePathFromUrl
 } = require('../lib/uploads');
+const sharp = require('sharp');
 
 const fsPromises = fs.promises;
 
@@ -179,6 +180,24 @@ router.post('/:id/avatar', (req, res, next) => {
 
       if (!req.file) {
         return res.status(400).json({ success: false, message: 'Avatar file required' });
+      }
+
+      try {
+        const buffer = await sharp(req.file.path)
+          .rotate()
+          .resize(256, 256, { fit: 'cover' })
+          .toFormat('jpeg', { quality: 80 })
+          .toBuffer();
+
+        const finalPath = req.file.path.replace(/\.[^.]+$/, '.jpg');
+        await fsPromises.writeFile(finalPath, buffer);
+        if (finalPath !== req.file.path) {
+          await fsPromises.unlink(req.file.path).catch(() => {});
+          req.file.path = finalPath;
+        }
+      } catch (imageErr) {
+        await fsPromises.unlink(req.file.path).catch(() => {});
+        return res.status(400).json({ success: false, message: 'Unable to process avatar image' });
       }
 
       const avatarUrl = toPublicUrl(req.file.path);

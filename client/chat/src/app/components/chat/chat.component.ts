@@ -23,7 +23,9 @@ import { User } from '../../models/user.model';
 import { AuthService } from '../../services/auth.service';
 import { NotifyService } from '../../services/notify.service';
 import {
+  CallEndedEvent,
   CallSessionEvent,
+  ChannelPresenceEvent,
   JoinChannelResponse,
   ServerMessage,
   SocketService
@@ -39,6 +41,7 @@ interface ChatMessage {
   avatarUrl?: string | null;
   imageUrl?: string | null;
 }
+
 
 @Component({
   selector: 'app-chat',
@@ -79,8 +82,9 @@ export class ChatComponent implements OnInit, OnDestroy {
   readonly callHost = signal<string | null>(null);
   readonly pendingImage = signal<File | null>(null);
   readonly pendingImagePreviewUrl = signal<string | null>(null);
-  readonly avatarUploading = signal(false);
   readonly imageUploading = signal(false);
+  readonly onlineMembers = signal<ChannelPresenceEvent[]>([]);
+  readonly mediaBaseUrl = 'http://localhost:3000';
 
   readonly disableSend = computed(() => {
     const hasText = !!this.newMessage().trim();
@@ -88,7 +92,6 @@ export class ChatComponent implements OnInit, OnDestroy {
     return (!hasText && !hasImage) || !!this.channelError() || this.imageUploading();
   });
 
-  @ViewChild('avatarPicker') avatarPicker?: ElementRef<HTMLInputElement>;
   @ViewChild('imagePicker') imagePicker?: ElementRef<HTMLInputElement>;
 
   constructor(
@@ -136,6 +139,14 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.socketService.callEnded$
       .pipe(takeUntil(this.destroy$))
       .subscribe(event => this.handleCallEnded(event));
+
+    this.socketService.channelUserJoined$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => this.handleChannelUserJoined(event));
+
+    this.socketService.channelUserLeft$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(event => this.handleChannelUserLeft(event));
   }
 
   ngOnDestroy(): void {
@@ -172,9 +183,32 @@ export class ChatComponent implements OnInit, OnDestroy {
     });
   }
 
-  formatTime(timestamp: Date): string {
+  openImagePicker(): void {
+    this.imagePicker?.nativeElement?.click();
+  }
+
+  mediaUrl(url: string | null | undefined): string | null {
+    if (!url) {
+      return null;
+    }
+    if (/^https?:\/\//i.test(url)) {
+      return url;
+    }
+    if (url.startsWith('//')) {
+      return `${typeof window !== 'undefined' ? window.location.protocol : 'http:'}${url}`;
+    }
+    if (url.startsWith('/')) {
+      return `${this.mediaBaseUrl}${url}`;
+    }
+    return `${this.mediaBaseUrl}/${url}`;
+  }
+
+  formatTimestamp(timestamp: Date): string {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', {
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -264,52 +298,6 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
-  async handleAvatarSelected(event: Event): Promise<void> {
-    if (!this.currentUser) {
-      return;
-    }
-    const input = event.target as HTMLInputElement;
-    const file = input?.files && input.files.length ? input.files[0] : null;
-    if (!file) {
-      return;
-    }
-    if (!file.type.startsWith('image/')) {
-      this.notify.error('Only image files are allowed');
-      if (input) {
-        input.value = '';
-      }
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('avatar', file);
-    this.avatarUploading.set(true);
-
-    try {
-      const response = await firstValueFrom(
-        this.http.post<{ success?: boolean; user?: User }>(
-          `http://localhost:3000/api/users/${this.currentUser.id}/avatar`,
-          formData
-        )
-      );
-      if (!response || response.success === false || !response.user) {
-        throw new Error('Failed to upload profile image');
-      }
-      this.currentUser = response.user;
-      this.authService.setCurrentUser(response.user);
-      this.notify.success('Profile image updated.');
-      this.loadGroupMembers();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Failed to upload profile image';
-      this.notify.error(message);
-    } finally {
-      this.avatarUploading.set(false);
-      if (input) {
-        input.value = '';
-      }
-    }
-  }
-
   onMessageMediaLoad(): void {
     this.scrollMessagesToBottom();
   }
@@ -377,6 +365,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.stopCallTone();
     this.newMessage.set('');
     this.clearPendingImage();
+    this.onlineMembers.set([]);
 
     try {
       const joinInfo: JoinChannelResponse = await this.socketService.joinChannel(
@@ -387,6 +376,16 @@ export class ChatComponent implements OnInit, OnDestroy {
       this.messages.set(mapped);
       this.messageIds = new Set(mapped.map(message => message.id));
       this.scrollMessagesToBottom();
+
+      const presence = Array.isArray(joinInfo.channelMembers)
+        ? joinInfo.channelMembers.map(member => ({
+            channelId: member.channelId || this.channelId,
+            userId: member.userId,
+            username: member.username,
+            avatarUrl: member.avatarUrl ?? null
+          }))
+        : [];
+      this.onlineMembers.set(presence);
 
       if (joinInfo.callActive) {
         this.callActive.set(true);
@@ -436,13 +435,59 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.notifyIncomingCall(event.username || null);
   }
 
-  private handleCallEnded(event: { channelId: string }): void {
+  private handleCallEnded(event: CallEndedEvent): void {
     if (!event || event.channelId !== this.channelId) {
       return;
     }
     this.callActive.set(false);
     this.callHost.set(null);
     this.stopCallTone();
+  }
+
+  private handleChannelUserJoined(event: ChannelPresenceEvent): void {
+    if (!event || event.channelId !== this.channelId) {
+      return;
+    }
+
+    let added = false;
+    this.onlineMembers.update(current => {
+      if (current.some(member => member.userId === event.userId)) {
+        return current;
+      }
+      added = true;
+      return [
+        ...current,
+        {
+          channelId: this.channelId,
+          userId: event.userId,
+          username: event.username,
+          avatarUrl: event.avatarUrl ?? null
+        }
+      ];
+    });
+
+    if (added && event.userId !== this.currentUser?.id) {
+      this.notify.info(`${event.username} joined the channel.`);
+    }
+  }
+
+  private handleChannelUserLeft(event: ChannelPresenceEvent): void {
+    if (!event || event.channelId !== this.channelId) {
+      return;
+    }
+
+    let removed = false;
+    this.onlineMembers.update(current => {
+      if (!current.some(member => member.userId === event.userId)) {
+        return current;
+      }
+      removed = true;
+      return current.filter(member => member.userId !== event.userId);
+    });
+
+    if (removed && event.userId !== this.currentUser?.id) {
+      this.notify.info(`${event.username} left the channel.`);
+    }
   }
 
   private notifyIncomingCall(hostname: string | null): void {

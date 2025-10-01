@@ -1,9 +1,23 @@
-.call-container {
-  height: 100vh;
+
+.call-overlay {
+  min-height: 100vh;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 23, 42, 0.82);
+  padding: 24px;
+}
+
+.call-card {
+  width: min(960px, calc(100% - 48px));
   background: #0f172a;
   color: white;
+  border-radius: 20px;
+  box-shadow: 0 22px 48px rgba(3, 7, 18, 0.4);
+  display: flex;
+  flex-direction: column;
+  min-height: 560px;
+  overflow: hidden;
 }
 
 .call-header {
@@ -96,6 +110,22 @@
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.2);
 }
 
+.btn-pill {
+  background: rgba(255, 255, 255, 0.1);
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.btn-pill:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
 .call-error {
   background: rgba(248, 113, 113, 0.15);
   border: 1px solid rgba(248, 113, 113, 0.4);
@@ -119,6 +149,7 @@
   gap: 20px;
 }
 
+
 .video-tile {
   background: #111c3d;
   border-radius: 16px;
@@ -128,12 +159,17 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  border: 2px solid transparent;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .video-tile h4 {
   margin: 0;
   font-size: 14px;
   opacity: 0.85;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .video-tile video {
@@ -142,6 +178,16 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
   object-fit: cover;
+}
+
+.video-tile.audio-active {
+  border-color: #22c55e;
+  box-shadow: 0 0 14px rgba(34, 197, 94, 0.35);
+}
+
+.video-tile.video-off video {
+  opacity: 0.15;
+  filter: grayscale(0.7);
 }
 
 .video-tile.share {
@@ -158,4 +204,14 @@
   font-size: 13px;
   background: rgba(15, 23, 42, 0.7);
   border-radius: 12px;
+}
+
+.video-tile.local .video-placeholder {
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.mute-indicator {
+  font-size: 16px;
+  line-height: 1;
 }

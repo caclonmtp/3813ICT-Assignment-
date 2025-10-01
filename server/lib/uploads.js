@@ -3,10 +3,11 @@ const fs = require('fs');
 
 const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
 const AVATAR_DIR = path.join(UPLOAD_ROOT, 'avatars');
+const GROUP_AVATAR_DIR = path.join(UPLOAD_ROOT, 'group-avatars');
 const MESSAGE_DIR = path.join(UPLOAD_ROOT, 'messages');
 
 function ensureUploadDirs() {
-  [UPLOAD_ROOT, AVATAR_DIR, MESSAGE_DIR].forEach(dir => {
+  [UPLOAD_ROOT, AVATAR_DIR, GROUP_AVATAR_DIR, MESSAGE_DIR].forEach(dir => {
     fs.mkdirSync(dir, { recursive: true });
   });
 }
@@ -31,6 +32,7 @@ function resolveFilePathFromUrl(url) {
 module.exports = {
   UPLOAD_ROOT,
   AVATAR_DIR,
+  GROUP_AVATAR_DIR,
   MESSAGE_DIR,
   ensureUploadDirs,
   toPublicUrl,

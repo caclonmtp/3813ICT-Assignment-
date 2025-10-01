@@ -5,6 +5,7 @@ import { DashboardComponent } from './components/dashboard/dashboard.component';
 import { ChatComponent } from './components/chat/chat.component';
 import { AdminComponent } from './components/admin/admin.component';
 import { GroupAdminComponent } from './components/group-admin/group-admin.component';
+import { CallComponent } from './components/call/call.component';
 import { AuthGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
@@ -31,6 +32,11 @@ export const routes: Routes = [
         component: GroupAdminComponent, 
         canActivate: [AuthGuard],
         data: { roles: ['group-admin', 'super-admin'] }
+    },
+    {
+        path: 'call/:groupId/:channelId',
+        component: CallComponent,
+        canActivate: [AuthGuard]
     }
 ];
 
