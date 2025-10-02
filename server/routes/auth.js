@@ -2,8 +2,10 @@ const express = require('express');
 const {
   findUserByCredentials,
   findUserByUsername,
+  findUserByEmail,
   createUser
 } = require('../lib/db');
+const { applyUserMedia } = require('../lib/media');
 
 const router = express.Router();
 
@@ -20,7 +22,7 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
     const { password: _, ...safe } = user;
-    return res.json({ success: true, user: safe });
+    return res.json({ success: true, user: applyUserMedia(safe) });
   } catch (err) {
     next(err);
   }
@@ -39,12 +41,16 @@ router.post('/register', async (req, res, next) => {
     if (existing) {
       return res.status(409).json({ success: false, message: 'Username taken' });
     }
+    const existingEmail = await findUserByEmail(emailNorm.toLowerCase());
+    if (existingEmail) {
+      return res.status(409).json({ success: false, message: 'Email already in use' });
+    }
     const user = await createUser({ username: uname, email: emailNorm, password: pwd, roles: ['user'], groups: [] });
     const { password: _, ...safe } = user;
-    return res.json({ success: true, user: safe });
+    return res.json({ success: true, user: applyUserMedia(safe) });
   } catch (err) {
-    if (err && err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-      return res.status(409).json({ success: false, message: 'Username taken' });
+    if (err && err.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Username or email already exists' });
     }
     next(err);
   }

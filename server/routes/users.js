@@ -10,16 +10,17 @@ const {
   addRoleToUser,
   deleteUser,
   createUser,
-  findUserByUsername
+  findUserByUsername,
+  findUserByEmail
 } = require('../lib/db');
 const { requireUser, isSuper } = require('../middleware/auth');
 const {
   AVATAR_DIR,
   ensureUploadDirs,
-  toPublicUrl,
   resolveFilePathFromUrl
 } = require('../lib/uploads');
 const sharp = require('sharp');
+const media = require('../lib/media');
 
 const fsPromises = fs.promises;
 
@@ -54,16 +55,23 @@ const avatarUpload = multer({
   }
 });
 
-async function removeOldAvatar(avatarUrl) {
-  const previousPath = resolveFilePathFromUrl(avatarUrl);
-  if (!previousPath) {
+async function removeExistingAvatar(user) {
+  if (!user) return;
+  if (user.avatarKey) {
+    await media.deleteKey(user.avatarKey);
     return;
   }
-  try {
-    await fsPromises.unlink(previousPath);
-  } catch (err) {
-    if (err && err.code !== 'ENOENT') {
-      console.warn('Failed to remove old avatar', err);
+  if (user.avatarUrl) {
+    const previousPath = resolveFilePathFromUrl(user.avatarUrl);
+    if (!previousPath) {
+      return;
+    }
+    try {
+      await fsPromises.unlink(previousPath);
+    } catch (err) {
+      if (err && err.code !== 'ENOENT') {
+        console.warn('Failed to remove old avatar', err);
+      }
     }
   }
 }
@@ -92,6 +100,11 @@ router.post('/', async (req, res, next) => {
       return res.status(409).json({ success: false, message: 'Username taken' });
     }
 
+    const existingEmail = await findUserByEmail(emailNorm.toLowerCase());
+    if (existingEmail) {
+      return res.status(409).json({ success: false, message: 'Email already in use' });
+    }
+
     if (roles && !Array.isArray(roles)) {
       return res.status(400).json({ success: false, message: 'roles must be an array when provided' });
     }
@@ -109,10 +122,10 @@ router.post('/', async (req, res, next) => {
     });
 
     const { password: _, ...safe } = user;
-    return res.status(201).json({ success: true, user: safe });
+    return res.status(201).json({ success: true, user: media.applyUserMedia(safe) });
   } catch (err) {
     if (err && err.code === 11000) {
-      return res.status(409).json({ success: false, message: 'Username taken' });
+      return res.status(409).json({ success: false, message: 'Username or email already exists' });
     }
     next(err);
   }
@@ -122,7 +135,8 @@ router.post('/', async (req, res, next) => {
 router.get('/', async (req, res, next) => {
   try {
     const users = await listUsers();
-    return res.json(users.map(({ password, ...u }) => u));
+    const sanitized = users.map(({ password, ...u }) => media.applyUserMedia(u));
+    return res.json(sanitized);
   } catch (err) {
     next(err);
   }
@@ -134,7 +148,7 @@ router.get('/:id', async (req, res, next) => {
     const user = await getUserById(req.params.id);
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
     const { password, ...safe } = user;
-    return res.json(safe);
+    return res.json(media.applyUserMedia(safe));
   } catch (err) {
     next(err);
   }
@@ -151,12 +165,24 @@ router.put('/:id', async (req, res, next) => {
     const updates = {};
     const { username, email, roles } = req.body || {};
     if (username) updates.username = username;
-    if (email) updates.email = email;
+    if (email) {
+      const normalizedEmail = String(email).trim();
+      if (normalizedEmail.toLowerCase() !== (user.email || '').toLowerCase()) {
+        const emailOwner = await findUserByEmail(normalizedEmail.toLowerCase());
+        if (emailOwner && emailOwner.id !== user.id) {
+          return res.status(409).json({ success: false, message: 'Email already in use' });
+        }
+      }
+      updates.email = normalizedEmail;
+    }
     if (roles && isSuper(req.me)) updates.roles = roles;
     const updated = await updateUser(req.params.id, updates);
     const { password, ...safe } = updated;
-    return res.json(safe);
+    return res.json(media.applyUserMedia(safe));
   } catch (err) {
+    if (err && err.code === 11000) {
+      return res.status(409).json({ success: false, message: 'Username or email already exists' });
+    }
     next(err);
   }
 });
@@ -182,30 +208,31 @@ router.post('/:id/avatar', (req, res, next) => {
         return res.status(400).json({ success: false, message: 'Avatar file required' });
       }
 
+      let buffer;
       try {
-        const buffer = await sharp(req.file.path)
+        buffer = await sharp(req.file.path)
           .rotate()
           .resize(256, 256, { fit: 'cover' })
           .toFormat('jpeg', { quality: 80 })
           .toBuffer();
-
-        const finalPath = req.file.path.replace(/\.[^.]+$/, '.jpg');
-        await fsPromises.writeFile(finalPath, buffer);
-        if (finalPath !== req.file.path) {
-          await fsPromises.unlink(req.file.path).catch(() => {});
-          req.file.path = finalPath;
-        }
       } catch (imageErr) {
         await fsPromises.unlink(req.file.path).catch(() => {});
         return res.status(400).json({ success: false, message: 'Unable to process avatar image' });
       }
 
-      const avatarUrl = toPublicUrl(req.file.path);
-      const updated = await updateUser(req.params.id, { avatarUrl });
-      await removeOldAvatar(user.avatarUrl);
+      await fsPromises.unlink(req.file.path).catch(() => {});
+
+      const saved = await media.saveBuffer(buffer, {
+        prefix: 'avatar',
+        contentType: 'image/jpeg',
+        filename: `${req.params.id}.jpg`
+      });
+
+      const updated = await updateUser(req.params.id, { avatarKey: saved.key });
+      await removeExistingAvatar(user);
 
       const { password, ...safe } = updated;
-      return res.json({ success: true, user: safe });
+      return res.json({ success: true, user: media.applyUserMedia(safe) });
     } catch (uploadErr) {
       next(uploadErr);
     }
@@ -223,7 +250,7 @@ router.patch('/:id/roles', async (req, res, next) => {
     const updated = await setUserRoles(req.params.id, roles);
     if (!updated) return res.status(404).json({ success: false, message: 'User not found' });
     const { password, ...safe } = updated;
-    return res.json(safe);
+    return res.json(media.applyUserMedia(safe));
   } catch (err) {
     next(err);
   }
@@ -236,7 +263,7 @@ router.post('/:id/promote', async (req, res, next) => {
     const updated = await addRoleToUser(req.params.id, 'group-admin');
     if (!updated) return res.status(404).json({ success: false, message: 'User not found' });
     const { password, ...safe } = updated;
-    return res.json(safe);
+    return res.json(media.applyUserMedia(safe));
   } catch (err) {
     next(err);
   }
@@ -251,6 +278,7 @@ router.delete('/:id', async (req, res, next) => {
     }
     const removed = await deleteUser(req.params.id, req.me.id);
     if (!removed) return res.status(404).json({ success: false, message: 'User not found' });
+    await removeExistingAvatar(removed);
     return res.json({ success: true });
   } catch (err) {
     next(err);

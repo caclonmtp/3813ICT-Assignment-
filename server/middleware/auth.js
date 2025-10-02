@@ -1,4 +1,5 @@
 const { getUserById } = require('../lib/db');
+const { applyUserMedia } = require('../lib/media');
 
 async function requireUser(req, res, next) {
   try {
@@ -7,7 +8,7 @@ async function requireUser(req, res, next) {
     const user = await getUserById(userId);
     if (!user) return res.status(401).json({ success: false, message: 'Invalid user id' });
     const { password, ...safeUser } = user;
-    req.me = safeUser;
+    req.me = applyUserMedia(safeUser);
     next();
   } catch (err) {
     next(err);

@@ -4,7 +4,7 @@ const cors = require('cors');
 const path = require('path');
 const { initDb } = require('./lib/db');
 const { initSocketServer } = require('./lib/socket');
-const { ensureUploadDirs, UPLOAD_ROOT } = require('./lib/uploads');
+const { ensureUploadDirs } = require('./lib/uploads');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,7 +14,6 @@ ensureUploadDirs();
 
 app.use(cors());
 app.use(express.json());
-app.use('/uploads', express.static(UPLOAD_ROOT));
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
@@ -22,6 +21,7 @@ app.use('/api/groups', require('./routes/groups'));
 app.use('/api/channels', require('./routes/channels'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/admin', require('./routes/admin'));
+app.use('/api/media', require('./routes/media'));
 
 app.use((err, req, res, next) => {
   console.error(err);

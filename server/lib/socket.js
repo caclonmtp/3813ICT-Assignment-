@@ -6,6 +6,7 @@ const {
   listMessages,
   createMessage
 } = require('./db');
+const media = require('./media');
 
 let ioInstance;
 // Map of channelId -> { participants: Set<string>, startedBy: { id: string, username: string }, startedAt: number }
@@ -74,7 +75,8 @@ function emitNewMessage(message) {
   if (!ioInstance || !message || !message.channelId) {
     return;
   }
-  ioInstance.to(channelRoom(message.channelId)).emit('chat:message', message);
+  const payload = media.applyMessageMedia({ ...message });
+  ioInstance.to(channelRoom(message.channelId)).emit('chat:message', payload);
 }
 
 function broadcastCallEvent(channelId, event, payload, exceptSocket) {
@@ -101,7 +103,7 @@ function toPresencePayload(user) {
   return {
     userId: user.id,
     username: user.username,
-    avatarUrl: user.avatarUrl || null
+    avatarUrl: media.applyUserMedia({ ...user }).avatarUrl || null
   };
 }
 
@@ -132,11 +134,13 @@ function initSocketServer(httpServer) {
         return next(new Error('Unauthorized'));
       }
 
+      const decoratedUser = media.applyUserMedia(user);
       socket.data.user = {
-        id: user.id,
-        username: user.username,
-        roles: Array.isArray(user.roles) ? user.roles : [],
-        avatarUrl: user.avatarUrl || null
+        id: decoratedUser.id,
+        username: decoratedUser.username,
+        roles: Array.isArray(decoratedUser.roles) ? decoratedUser.roles : [],
+        avatarUrl: decoratedUser.avatarUrl || null,
+        avatarKey: decoratedUser.avatarKey || null
       };
       socket.data.joinedChannels = new Set();
       socket.data.callChannels = new Set();
@@ -199,12 +203,15 @@ function initSocketServer(httpServer) {
 
         socket.join(channelRoom(channel.id));
         socket.data.joinedChannels.add(channel.id);
-        const messages = await listMessages({ channelId: channel.id });
+        const rawMessages = await listMessages({ channelId: channel.id });
+        const messages = rawMessages.map(media.applyMessageMedia);
 
         const freshUser = await getUserById(user.id);
         if (freshUser) {
-          socket.data.user.username = freshUser.username;
-          socket.data.user.avatarUrl = freshUser.avatarUrl || null;
+          const decorated = media.applyUserMedia(freshUser);
+          socket.data.user.username = decorated.username;
+          socket.data.user.avatarUrl = decorated.avatarUrl || null;
+          socket.data.user.avatarKey = decorated.avatarKey || socket.data.user.avatarKey || null;
         }
 
         let members = channelMembers.get(channel.id);
@@ -282,24 +289,31 @@ function initSocketServer(httpServer) {
           userId: user.id
         });
 
+        let decoratedAuthor = socket.data.user;
         const freshUser = await getUserById(user.id);
         if (freshUser) {
-          socket.data.user.username = freshUser.username;
-          socket.data.user.avatarUrl = freshUser.avatarUrl || null;
+          const applied = media.applyUserMedia(freshUser);
+          socket.data.user.username = applied.username;
+          socket.data.user.avatarUrl = applied.avatarUrl || null;
+          socket.data.user.avatarKey = applied.avatarKey || socket.data.user.avatarKey || null;
+          decoratedAuthor = socket.data.user;
         }
 
         const message = await createMessage({
           groupId: channel.groupId,
           channelId: channel.id,
           userId: user.id,
-          username: freshUser?.username || user.username,
+          username: decoratedAuthor.username,
           content: trimmed,
-          avatarUrl: freshUser?.avatarUrl || user.avatarUrl || null,
-          imageUrl: null
+          avatarKey: decoratedAuthor.avatarKey || null,
+          imageKey: null,
+          imageContentType: null,
+          imageFilename: null
         });
 
+        const decoratedMessage = media.applyMessageMedia({ ...message });
         emitNewMessage(message);
-        safeAck(ack, { success: true, message });
+        safeAck(ack, { success: true, message: decoratedMessage });
       } catch (err) {
         safeAck(ack, { success: false, message: err.message || 'Failed to send message' });
       }
@@ -350,8 +364,10 @@ function initSocketServer(httpServer) {
               userId: 'system',
               username: 'System',
               content: `${user.username} started a call.`,
-              avatarUrl: null,
-              imageUrl: null
+              avatarKey: null,
+              imageKey: null,
+              imageContentType: null,
+              imageFilename: null
             });
             emitNewMessage(systemMessage);
           } catch (err) {
@@ -441,8 +457,10 @@ function initSocketServer(httpServer) {
             content: endedBy?.username
               ? `Call ended when ${endedBy.username} left.`
               : 'Call ended.',
-            avatarUrl: null,
-            imageUrl: null
+            avatarKey: null,
+            imageKey: null,
+            imageContentType: null,
+            imageFilename: null
           });
           emitNewMessage(message);
         }

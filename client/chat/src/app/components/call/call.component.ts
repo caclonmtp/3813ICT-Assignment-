@@ -169,6 +169,26 @@ export class CallComponent implements OnInit, OnDestroy {
     await this.enterCall(false);
   }
 
+  groupInitial(): string {
+    if (this.groupName) {
+      return this.groupName.charAt(0).toUpperCase();
+    }
+    return '#';
+  }
+
+  callStatusLabel(): string {
+    if (this.inCall()) {
+      return 'In Call';
+    }
+    if (this.isCallLoading()) {
+      return 'Connecting';
+    }
+    if (this.callActive()) {
+      return 'Live Call';
+    }
+    return 'Ready';
+  }
+
   async leaveCall(): Promise<void> {
     await this.endCall(true, true);
   }

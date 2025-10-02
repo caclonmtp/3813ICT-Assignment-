@@ -84,6 +84,7 @@ export class ChatComponent implements OnInit, OnDestroy {
   readonly pendingImagePreviewUrl = signal<string | null>(null);
   readonly imageUploading = signal(false);
   readonly onlineMembers = signal<ChannelPresenceEvent[]>([]);
+  readonly showInfoPanel = signal(false);
   readonly mediaBaseUrl = 'http://localhost:3000';
 
   readonly disableSend = computed(() => {
@@ -102,6 +103,13 @@ export class ChatComponent implements OnInit, OnDestroy {
     private readonly socketService: SocketService,
     private readonly notify: NotifyService
   ) {}
+
+  groupInitial(): string {
+    if (this.groupName) {
+      return this.groupName.charAt(0).toUpperCase();
+    }
+    return '#';
+  }
 
   get newMessageValue(): string {
     return this.newMessage();
@@ -168,6 +176,14 @@ export class ChatComponent implements OnInit, OnDestroy {
 
   goToGroupAdmin(): void {
     this.router.navigate(['/group-admin']);
+  }
+
+  toggleInfoPanel(): void {
+    this.showInfoPanel.update(current => !current);
+  }
+
+  closeInfoPanel(): void {
+    this.showInfoPanel.set(false);
   }
 
   startCall(): void {
@@ -366,6 +382,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.newMessage.set('');
     this.clearPendingImage();
     this.onlineMembers.set([]);
+    this.showInfoPanel.set(false);
 
     try {
       const joinInfo: JoinChannelResponse = await this.socketService.joinChannel(

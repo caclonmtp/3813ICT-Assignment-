@@ -63,7 +63,7 @@
                         [disabled]="groupAvatarUploading">
                     {{ groupAvatarUploading ? 'Uploading…' : 'Change Avatar' }}
                 </button>
-                <input #groupAvatarPicker type="file" class="sr-only" accept="image/*" (change)="handleGroupAvatarSelected($event)">
+                <input #groupAvatarPicker type="file" hidden accept="image/*" (change)="handleGroupAvatarSelected($event)">
             </div>
 
             <div class="section">

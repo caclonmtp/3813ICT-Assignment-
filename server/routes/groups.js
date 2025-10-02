@@ -19,9 +19,9 @@ const { requireUser, isSuper, isGroupAdmin } = require('../middleware/auth');
 const {
   GROUP_AVATAR_DIR,
   ensureUploadDirs,
-  toPublicUrl,
   resolveFilePathFromUrl
 } = require('../lib/uploads');
+const media = require('../lib/media');
 
 const router = express.Router();
 
@@ -57,14 +57,21 @@ const groupAvatarUpload = multer({
   }
 });
 
-async function removeGroupAvatar(avatarUrl) {
-  const previousPath = resolveFilePathFromUrl(avatarUrl);
-  if (!previousPath) return;
-  try {
-    await fsPromises.unlink(previousPath);
-  } catch (err) {
-    if (!err || err.code !== 'ENOENT') {
-      console.warn('Failed to remove old group avatar', err);
+async function removeGroupAvatar(group) {
+  if (!group) return;
+  if (group.avatarKey) {
+    await media.deleteKey(group.avatarKey);
+    return;
+  }
+  if (group.avatarUrl) {
+    const previousPath = resolveFilePathFromUrl(group.avatarUrl);
+    if (!previousPath) return;
+    try {
+      await fsPromises.unlink(previousPath);
+    } catch (err) {
+      if (!err || err.code !== 'ENOENT') {
+        console.warn('Failed to remove old group avatar', err);
+      }
     }
   }
 }
@@ -74,7 +81,8 @@ router.use(requireUser);
 // GET /api/groups
 router.get('/', async (req, res, next) => {
   try {
-    const groups = isSuper(req.me) ? await listGroups() : await listGroupsForUser(req.me.id);
+    const groupsRaw = isSuper(req.me) ? await listGroups() : await listGroupsForUser(req.me.id);
+    const groups = groupsRaw.map(media.applyGroupMedia);
     return res.json(groups);
   } catch (err) {
     next(err);
@@ -85,7 +93,7 @@ router.get('/', async (req, res, next) => {
 router.get('/user/:userId', async (req, res, next) => {
   try {
     const groups = await listGroupsForUser(req.params.userId, isSuper(req.me));
-    return res.json(groups);
+    return res.json(groups.map(media.applyGroupMedia));
   } catch (err) {
     next(err);
   }
@@ -100,7 +108,7 @@ router.post('/', async (req, res, next) => {
     const { name } = req.body || {};
     if (!name) return res.status(400).json({ success: false, message: 'name required' });
     const group = await createGroup({ name, createdBy: req.me.id });
-    return res.json({ success: true, group });
+    return res.json({ success: true, group: media.applyGroupMedia(group) });
   } catch (err) {
     next(err);
   }
@@ -133,29 +141,30 @@ router.post('/:groupId/avatar', (req, res, next) => {
         return res.status(400).json({ success: false, message: 'Avatar file required' });
       }
 
+      let buffer;
       try {
-        const buffer = await sharp(req.file.path)
+        buffer = await sharp(req.file.path)
           .rotate()
           .resize(256, 256, { fit: 'cover' })
           .toFormat('jpeg', { quality: 80 })
           .toBuffer();
-
-        const finalPath = req.file.path.replace(/\.[^.]+$/, '.jpg');
-        await fsPromises.writeFile(finalPath, buffer);
-        if (finalPath !== req.file.path) {
-          await fsPromises.unlink(req.file.path).catch(() => {});
-          req.file.path = finalPath;
-        }
       } catch (imageErr) {
         await fsPromises.unlink(req.file.path).catch(() => {});
         return res.status(400).json({ success: false, message: 'Unable to process group avatar image' });
       }
 
-      const avatarUrl = toPublicUrl(req.file.path);
-      const updatedGroup = await updateGroup(groupId, { avatarUrl });
-      await removeGroupAvatar(group.avatarUrl);
+      await fsPromises.unlink(req.file.path).catch(() => {});
 
-      return res.json({ success: true, group: updatedGroup });
+      const saved = await media.saveBuffer(buffer, {
+        prefix: 'group-avatar',
+        contentType: 'image/jpeg',
+        filename: `${groupId}.jpg`
+      });
+
+      const updatedGroup = await updateGroup(groupId, { avatarKey: saved.key });
+      await removeGroupAvatar(group);
+
+      return res.json({ success: true, group: media.applyGroupMedia(updatedGroup) });
     } catch (uploadErr) {
       next(uploadErr);
     }
@@ -170,7 +179,8 @@ router.delete('/:groupId', async (req, res, next) => {
     if (!(isSuper(req.me) || group.createdBy === req.me.id)) {
       return res.status(403).json({ success: false, message: 'Only owner or super' });
     }
-    await deleteGroup(group.id);
+    const deleted = await deleteGroup(group.id);
+    await removeGroupAvatar(deleted || group);
     return res.json({ success: true });
   } catch (err) {
     next(err);
@@ -188,7 +198,7 @@ router.post('/:groupId/members', async (req, res, next) => {
     const { userId } = req.body || {};
     if (!userId) return res.status(400).json({ success: false, message: 'userId required' });
     const updated = await addGroupMember(group.id, userId);
-    return res.json(updated);
+    return res.json(media.applyGroupMedia(updated));
   } catch (err) {
     next(err);
   }
@@ -203,7 +213,7 @@ router.delete('/:groupId/members/:userId', async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'Admins only' });
     }
     const updated = await removeGroupMember(group.id, req.params.userId);
-    return res.json(updated);
+    return res.json(media.applyGroupMedia(updated));
   } catch (err) {
     next(err);
   }

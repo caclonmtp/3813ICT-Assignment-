@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const {
   listMessages,
   createMessage,
@@ -9,9 +10,11 @@ const {
 } = require('../lib/db');
 const { emitNewMessage } = require('../lib/socket');
 const { requireUser } = require('../middleware/auth');
-const { ensureUploadDirs, MESSAGE_DIR, toPublicUrl } = require('../lib/uploads');
+const { ensureUploadDirs, MESSAGE_DIR } = require('../lib/uploads');
+const media = require('../lib/media');
 
 const router = express.Router();
+const fsPromises = fs.promises;
 
 const messageStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -48,7 +51,8 @@ router.get('/', async (req, res, next) => {
   try {
     const { groupId, channelId } = req.query;
     const messages = await listMessages({ groupId, channelId });
-    return res.json({ success: true, messages });
+    const decorated = messages.map(message => media.applyMessageMedia({ ...message }));
+    return res.json({ success: true, messages: decorated });
   } catch (err) {
     next(err);
   }
@@ -77,11 +81,14 @@ router.post('/', async (req, res, next) => {
       userId: req.me.id,
       username: req.me.username,
       content: trimmed,
-      avatarUrl: req.me.avatarUrl || null,
-      imageUrl: null
+      avatarKey: req.me.avatarKey || null,
+      imageKey: null,
+      imageContentType: null,
+      imageFilename: null
     });
+    const decorated = media.applyMessageMedia({ ...message });
     emitNewMessage(message);
-    return res.json({ success: true, message });
+    return res.json({ success: true, message: decorated });
   } catch (err) {
     next(err);
   }
@@ -129,9 +136,15 @@ router.post('/upload', (req, res, next) => {
         return res.status(403).json({ success: false, message: 'You are banned in this channel' });
       }
 
-      const imageUrl = toPublicUrl(req.file.path);
+      const fileBuffer = await fsPromises.readFile(req.file.path);
+      await fsPromises.unlink(req.file.path).catch(() => {});
+      const savedMedia = await media.saveBuffer(fileBuffer, {
+        prefix: 'message',
+        contentType: req.file.mimetype,
+        filename: req.file.originalname
+      });
       const trimmedContent = content.trim();
-      if (!trimmedContent && !imageUrl) {
+      if (!trimmedContent && !savedMedia.key) {
         return res.status(400).json({ success: false, message: 'Message requires text or image content' });
       }
 
@@ -141,12 +154,15 @@ router.post('/upload', (req, res, next) => {
         userId,
         username: req.me.username,
         content: trimmedContent,
-        avatarUrl: req.me.avatarUrl || null,
-        imageUrl
+        avatarKey: req.me.avatarKey || null,
+        imageKey: savedMedia.key,
+        imageContentType: req.file.mimetype,
+        imageFilename: req.file.originalname
       });
 
+      const decorated = media.applyMessageMedia({ ...message });
       emitNewMessage(message);
-      return res.json({ success: true, message });
+      return res.json({ success: true, message: decorated });
     } catch (uploadErr) {
       next(uploadErr);
     }

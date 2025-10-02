@@ -1,17 +1,96 @@
 <div class="chat-container">
     <div class="chat-header">
-        <button class="btn-back" type="button" (click)="backToDashboard()">
-            ← Back
-        </button>
-        <div class="channel-info">
-            <h2>{{ groupName }} / #{{ channelName }}</h2>
-            <span class="member-count">{{ groupMembers.length }} members</span>
+        <div class="header-left">
+            <button class="btn-back" type="button" (click)="backToDashboard()">
+                <span class="material-icon">←</span>
+            </button>
+            <div class="channel-meta">
+                <div class="channel-avatar">{{ groupInitial() }}</div>
+                <div class="channel-titles">
+                    <h2>{{ groupName }} <span>/ #{{ channelName }}</span></h2>
+                    <div class="channel-subtitle">
+                        <span class="status-dot" [class.active]="callActive()"></span>
+                        <span *ngIf="callActive(); else memberCount">
+                            {{ callHost() ? callHost() + ' is on a call' : 'Live call in progress' }}
+                        </span>
+                        <ng-template #memberCount>
+                            {{ groupMembers.length }} members in channel
+                        </ng-template>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="header-actions">
-            <button class="btn-info" type="button">ℹ️ Info</button>
-            <button class="btn-admin" type="button" *ngIf="canManageGroup" (click)="goToGroupAdmin()">Manage Group</button>
+            <button class="icon-button" type="button" (click)="toggleInfoPanel()" aria-label="Channel details">ℹ️</button>
+            <button class="icon-button" type="button" *ngIf="canManageGroup" (click)="goToGroupAdmin()">⚙️</button>
         </div>
     </div>
+
+    <div class="channel-info-panel" [class.open]="showInfoPanel()">
+        <div class="panel-header">
+            <div class="panel-title">
+                <h3>{{ groupName }}</h3>
+                <span>#{{ channelName }}</span>
+            </div>
+            <button type="button" class="panel-close" (click)="closeInfoPanel()" aria-label="Close channel details">×</button>
+        </div>
+
+        <div class="panel-section">
+            <h4>Overview</h4>
+            <ul class="panel-stats">
+                <li>
+                    <span class="label">Members</span>
+                    <span class="value">{{ groupMembers.length }}</span>
+                </li>
+                <li>
+                    <span class="label">Admins</span>
+                    <span class="value">{{ group?.admins?.length || 0 }}</span>
+                </li>
+                <li>
+                    <span class="label">Created</span>
+                    <span class="value">{{ group?.createdAt | date: 'mediumDate' }}</span>
+                </li>
+                <li>
+                    <span class="label">Status</span>
+                    <span class="value">{{ callActive() ? 'Call in progress' : 'Idle' }}</span>
+                </li>
+            </ul>
+        </div>
+
+        <div class="panel-section" *ngIf="onlineMembers().length">
+            <h4>Currently Online</h4>
+            <div class="panel-pill-group">
+                <span class="pill" *ngFor="let member of onlineMembers()">
+                    {{ member.username }}
+                </span>
+            </div>
+        </div>
+
+        <div class="panel-section">
+            <h4>Top Members</h4>
+            <div class="panel-member" *ngFor="let member of groupMembers | slice:0:6">
+                <div class="panel-member-avatar">
+                    <img *ngIf="member.avatarUrl" [src]="mediaUrl(member.avatarUrl)" [alt]="member.username + ' avatar'">
+                    <span *ngIf="!member.avatarUrl">{{ member.username.charAt(0).toUpperCase() }}</span>
+                </div>
+                <div class="panel-member-meta">
+                    <span class="name">{{ member.username }}</span>
+                    <span class="role">{{ member.roles.includes('super-admin') ? 'Super Admin' : member.roles.includes('group-admin') ? 'Group Admin' : 'Member' }}</span>
+                </div>
+            </div>
+            <div class="panel-note" *ngIf="groupMembers.length > 6">
+                + {{ groupMembers.length - 6 }} more members
+            </div>
+        </div>
+
+        <div class="panel-section quick-actions">
+            <h4>Quick Actions</h4>
+            <button type="button" (click)="startCall()" class="panel-action">Start Call</button>
+            <button type="button" (click)="goToGroupAdmin()" class="panel-action" *ngIf="canManageGroup">Manage Group</button>
+        </div>
+    </div>
+
+    <div class="channel-info-overlay" *ngIf="showInfoPanel()" (click)="closeInfoPanel()"></div>
 
     <div class="chat-body">
         <div class="chat-sidebar">
@@ -36,16 +115,21 @@
         </div>
 
         <div class="chat-main">
-            <div class="call-controls">
-                <button class="btn-call start" type="button" (click)="startCall()">
-                    Start Call
-                </button>
-                <button class="btn-call join" type="button" *ngIf="callActive()" (click)="joinCall()">
-                    Join Call
-                </button>
-                <span *ngIf="callActive()" class="call-indicator">
-                    {{ callHost() ? callHost() + ' is in a call' : 'Call in progress' }}
-                </span>
+            <div class="call-banner">
+                <div class="call-banner-info">
+                    <div class="call-title">{{ callActive() ? 'Live Call' : 'Start a Call' }}</div>
+                    <div class="call-subtitle">
+                        {{ callActive() ? 'Join the ongoing conversation instantly' : 'Spin up a call to collaborate with your team' }}
+                    </div>
+                </div>
+                <div class="call-actions">
+                    <button class="btn-call start" type="button" (click)="startCall()">
+                        Start Call
+                    </button>
+                    <button class="btn-call join" type="button" *ngIf="callActive()" (click)="joinCall()">
+                        Join
+                    </button>
+                </div>
             </div>
 
             <div class="channel-presence" *ngIf="onlineMembers().length">
@@ -95,32 +179,23 @@
             </div>
 
             <div class="message-input-container">
-                <div class="message-input-actions-top">
-                    <button class="btn-attach" type="button" (click)="openImagePicker()" [disabled]="imageUploading()">
-                        📎 Add Image
+                <div class="composer-toolbar">
+                    <button class="btn-attach" type="button" (click)="openImagePicker()" [disabled]="imageUploading()">📎</button>
+                    <textarea 
+                        [(ngModel)]="newMessageValue"
+                        (keydown.enter)="handleKeyPress($event)"
+                        placeholder="Type a message..."
+                        class="message-input"
+                        rows="2"
+                        [disabled]="!!channelError() || imageUploading()">
+                    </textarea>
+                    <button (click)="sendMessage()" class="btn-send" type="button" [disabled]="disableSend()">
+                        ➤
                     </button>
-                    <div class="selected-image" *ngIf="pendingImage()">
-                        <span class="selected-image-name">{{ pendingImage()?.name }}</span>
-                        <button class="btn-clear-image" type="button" (click)="clearPendingImage()">✕</button>
-                    </div>
-                    <span class="uploading-indicator" *ngIf="imageUploading()">Uploading image...</span>
                 </div>
-                <textarea 
-                    [(ngModel)]="newMessageValue"
-                    (keydown.enter)="handleKeyPress($event)"
-                    placeholder="Type a message..."
-                    class="message-input"
-                    rows="2"
-                    [disabled]="!!channelError() || imageUploading()">
-                </textarea>
                 <div class="image-preview" *ngIf="pendingImagePreviewUrl()">
                     <img [src]="pendingImagePreviewUrl()" alt="Selected image preview">
                     <button class="btn-clear-image" type="button" (click)="clearPendingImage()">Remove</button>
-                </div>
-                <div class="message-input-actions-bottom">
-                    <button (click)="sendMessage()" class="btn-send" type="button" [disabled]="disableSend()">
-                        {{ pendingImage() ? 'Send Image' : 'Send' }}
-                    </button>
                 </div>
                 <input #imagePicker type="file" class="sr-only" accept="image/*" (change)="handleMessageImageSelected($event)">
             </div>

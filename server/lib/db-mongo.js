@@ -1,4 +1,5 @@
 const { MongoClient } = require('mongodb');
+const crypto = require('crypto');
 
 function resolveMongoUri() {
   return process.env.MEAN_CHAT_MONGO_URI || 'mongodb://127.0.0.1:27017';
@@ -11,6 +12,41 @@ function resolveMongoDb() {
 let client;
 let database;
 let initPromise;
+
+const PASSWORD_SIGNATURE = 'pbkdf2';
+const PBKDF2_ITERATIONS = Number(process.env.MEAN_CHAT_PBKDF2_ITERATIONS || 120000);
+const PBKDF2_KEYLEN = 64;
+const PBKDF2_DIGEST = 'sha512';
+
+function hashPassword(password) {
+  if (typeof password !== 'string' || !password.trim()) {
+    throw new Error('Password must be a non-empty string');
+  }
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto
+    .pbkdf2Sync(password, salt, PBKDF2_ITERATIONS, PBKDF2_KEYLEN, PBKDF2_DIGEST)
+    .toString('hex');
+  return `${PASSWORD_SIGNATURE}$${PBKDF2_ITERATIONS}$${salt}$${derived}`;
+}
+
+function isHashedPassword(password) {
+  return typeof password === 'string' && password.startsWith(`${PASSWORD_SIGNATURE}$`);
+}
+
+function verifyPassword(password, stored) {
+  if (typeof stored !== 'string' || !stored) {
+    return false;
+  }
+  if (!isHashedPassword(stored)) {
+    return stored === password;
+  }
+  const [, iterStr, salt, hash] = stored.split('$');
+  const iterations = Number(iterStr) || PBKDF2_ITERATIONS;
+  const derived = crypto
+    .pbkdf2Sync(password, salt, iterations, PBKDF2_KEYLEN, PBKDF2_DIGEST)
+    .toString('hex');
+  return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(derived, 'hex'));
+}
 
 function genId(prefix = '') {
   const rand = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
@@ -50,34 +86,59 @@ async function configureIndexes() {
   const db = getDb();
   await Promise.all([
     db.collection('users').createIndex({ usernameLower: 1 }, { unique: true }),
+    db.collection('users').createIndex(
+      { emailLower: 1 },
+      {
+        unique: true,
+        name: 'emailLower_unique',
+        partialFilterExpression: { emailLower: { $exists: true, $type: 'string' } }
+      }
+    ),
     db.collection('groups').createIndex({ id: 1 }, { unique: true }),
     db.collection('channels').createIndex({ id: 1 }, { unique: true }),
     db.collection('channels').createIndex({ groupId: 1 }),
-    db.collection('messages').createIndex({ channelId: 1, timestamp: 1 }),
-    db.collection('messages').createIndex({ groupId: 1, timestamp: 1 })
+    db.collection('groups').createIndex({ members: 1 }),
+    db.collection('groups').createIndex({ admins: 1 }),
+    db.collection('groups').createIndex({ createdAt: -1 }),
+    db.collection('messages').createIndex({ channelId: 1, timestamp: -1 }),
+    db.collection('messages').createIndex({ groupId: 1, timestamp: -1 }),
+    db.collection('messages').createIndex({ userId: 1, timestamp: -1 })
   ]);
 }
 
 async function ensureDefaultSuperUser() {
   const db = getDb();
   const existing = await db.collection('users').findOne({ usernameLower: 'super' });
+  const superPayload = {
+    id: 'u_super',
+    username: 'super',
+    usernameLower: 'super',
+    email: 'super@admin.com',
+    emailLower: 'super@admin.com',
+    password: hashPassword('123'),
+    roles: ['super-admin'],
+    groups: [],
+    avatarUrl: null,
+    createdAt: Date.now()
+  };
   if (!existing) {
-    await db.collection('users').insertOne({
-      id: 'u_super',
-      username: 'super',
-      usernameLower: 'super',
-      email: 'super@admin.com',
-      password: '123',
-      roles: ['super-admin'],
-      groups: [],
-      avatarUrl: null
-    });
+    await db.collection('users').insertOne(superPayload);
+  } else if (!isHashedPassword(existing.password)) {
+    await db.collection('users').updateOne(
+      { id: existing.id },
+      {
+        $set: {
+          password: superPayload.password,
+          emailLower: existing.email ? existing.email.toLowerCase() : null
+        }
+      }
+    );
   }
 }
 
 function mapUser(doc) {
   if (!doc) return null;
-  const { _id, usernameLower, ...rest } = doc;
+  const { _id, usernameLower, emailLower, password, ...rest } = doc;
   return rest;
 }
 
@@ -125,28 +186,61 @@ async function findUserByUsername(usernameLower) {
   return mapUser(doc);
 }
 
-async function findUserByCredentials(usernameLower, password) {
+async function findUserByEmail(emailLower) {
+  if (!emailLower) return null;
   await initDb();
   const doc = await getDb()
     .collection('users')
-    .findOne({ usernameLower, password }, { projection: { _id: 0 } });
+    .findOne({ emailLower }, { projection: { _id: 0 } });
+  return mapUser(doc);
+}
+
+async function findUserByCredentials(usernameLower, password) {
+  await initDb();
+  const userCollection = getDb().collection('users');
+  const doc = await userCollection.findOne({ usernameLower });
+  if (!doc) {
+    return null;
+  }
+
+  if (!verifyPassword(password, doc.password)) {
+    return null;
+  }
+
+  if (!isHashedPassword(doc.password)) {
+    const hashed = hashPassword(password);
+    const setPayload = { password: hashed };
+    if (doc.email && !doc.emailLower) {
+      setPayload.emailLower = doc.email.toLowerCase();
+    }
+    await userCollection.updateOne({ id: doc.id }, { $set: setPayload });
+    doc.password = hashed;
+    doc.emailLower = doc.email ? doc.email.toLowerCase() : undefined;
+  }
+
   return mapUser(doc);
 }
 
 async function createUser(user) {
   await initDb();
   const id = user.id || genId('u_');
+  const emailLower = typeof user.email === 'string' ? user.email.toLowerCase() : null;
   const payload = {
     id,
     username: user.username,
     usernameLower: String(user.username).toLowerCase(),
     email: user.email,
-    password: user.password,
+    password: hashPassword(user.password),
     roles: Array.isArray(user.roles) && user.roles.length ? user.roles : ['user'],
     groups: Array.isArray(user.groups) ? user.groups : [],
     avatarUrl:
-      typeof user.avatarUrl === 'string' && user.avatarUrl.trim() ? user.avatarUrl.trim() : null
+      typeof user.avatarUrl === 'string' && user.avatarUrl.trim() ? user.avatarUrl.trim() : null,
+    avatarKey: user.avatarKey || null,
+    createdAt: Date.now()
   };
+  if (emailLower) {
+    payload.emailLower = emailLower;
+  }
   await getDb().collection('users').insertOne(payload);
   return getUserById(id);
 }
@@ -157,17 +251,30 @@ async function updateUser(id, updates) {
   if (typeof payload.username === 'string') {
     payload.usernameLower = payload.username.toLowerCase();
   }
-  if (payload.avatarUrl === undefined) {
+  if (typeof payload.email === 'string') {
+    payload.emailLower = payload.email.toLowerCase();
+  }
+  if (typeof payload.password === 'string') {
+    payload.password = hashPassword(payload.password);
+  }
+  if (payload.avatarKey === undefined) {
+    delete payload.avatarKey;
+  } else if (typeof payload.avatarKey === 'string' && payload.avatarKey.trim()) {
+    payload.avatarKey = payload.avatarKey.trim();
+  } else {
+    payload.avatarKey = null;
+  }
+  if (payload.avatarUrl !== undefined) {
     delete payload.avatarUrl;
-  } else if (typeof payload.avatarUrl === 'string') {
-    payload.avatarUrl = payload.avatarUrl.trim() || null;
   }
   const updateDoc = {
     $set: payload
   };
   if (payload.roles === undefined) delete payload.roles;
   if (payload.groups === undefined) delete payload.groups;
-  if (payload.avatarUrl === undefined) delete payload.avatarUrl;
+  if (payload.avatarKey === undefined) delete payload.avatarKey;
+  if (payload.emailLower === undefined) delete payload.emailLower;
+  if (payload.password === undefined) delete payload.password;
 
   await getDb()
     .collection('users')
@@ -270,6 +377,7 @@ async function createGroup({ name, createdBy }) {
     admins: [createdBy],
     members: [createdBy],
     createdAt: now,
+    avatarKey: null,
     avatarUrl: null
   };
   await getDb().collection('groups').insertOne(payload);
@@ -282,10 +390,15 @@ async function updateGroup(id, updates = {}) {
   if (typeof payload.name === 'string') {
     payload.name = payload.name.trim();
   }
-  if (payload.avatarUrl === undefined) {
+  if (payload.avatarKey === undefined) {
+    delete payload.avatarKey;
+  } else if (typeof payload.avatarKey === 'string' && payload.avatarKey.trim()) {
+    payload.avatarKey = payload.avatarKey.trim();
+  } else {
+    payload.avatarKey = null;
+  }
+  if (payload.avatarUrl !== undefined) {
     delete payload.avatarUrl;
-  } else if (typeof payload.avatarUrl === 'string') {
-    payload.avatarUrl = payload.avatarUrl.trim() || null;
   }
 
   await getDb()
@@ -418,8 +531,10 @@ async function createMessage({
   userId,
   username,
   content = '',
-  avatarUrl,
-  imageUrl
+  avatarKey,
+  imageKey,
+  imageContentType,
+  imageFilename
 }) {
   await initDb();
   const message = {
@@ -429,8 +544,10 @@ async function createMessage({
     userId,
     username,
     content: typeof content === 'string' ? content : '',
-    avatarUrl: typeof avatarUrl === 'string' && avatarUrl.trim() ? avatarUrl.trim() : null,
-    imageUrl: typeof imageUrl === 'string' && imageUrl.trim() ? imageUrl.trim() : null,
+    avatarKey: typeof avatarKey === 'string' && avatarKey.trim() ? avatarKey.trim() : null,
+    imageKey: typeof imageKey === 'string' && imageKey.trim() ? imageKey.trim() : null,
+    imageContentType: typeof imageContentType === 'string' ? imageContentType : null,
+    imageFilename: typeof imageFilename === 'string' ? imageFilename : null,
     timestamp: Date.now()
   };
   await getDb().collection('messages').insertOne(message);
@@ -469,7 +586,10 @@ async function importData(data) {
         username: user.username,
         usernameLower: user.username.toLowerCase(),
         email: user.email,
-        password: user.password,
+        emailLower: typeof user.email === 'string' ? user.email.toLowerCase() : undefined,
+        password: isHashedPassword(user.password)
+          ? user.password
+          : hashPassword(typeof user.password === 'string' ? user.password : 'changeme'),
         roles: Array.isArray(user.roles) ? user.roles : [],
         groups: Array.isArray(user.groups) ? user.groups : [],
         avatarUrl: typeof user.avatarUrl === 'string' && user.avatarUrl.trim()
@@ -488,6 +608,9 @@ async function importData(data) {
         admins: Array.isArray(group.admins) ? group.admins : [],
         members: Array.isArray(group.members) ? group.members : [],
         createdAt: Number(group.createdAt ?? Date.now()),
+        avatarKey: typeof group.avatarKey === 'string' && group.avatarKey.trim()
+          ? group.avatarKey.trim()
+          : null,
         avatarUrl: typeof group.avatarUrl === 'string' && group.avatarUrl.trim()
           ? group.avatarUrl.trim()
           : null
@@ -517,6 +640,22 @@ async function importData(data) {
         userId: message.userId,
         username: message.username,
         content: typeof message.content === 'string' ? message.content : '',
+        avatarKey:
+          typeof message.avatarKey === 'string' && message.avatarKey.trim()
+            ? message.avatarKey.trim()
+            : null,
+        imageKey:
+          typeof message.imageKey === 'string' && message.imageKey.trim()
+            ? message.imageKey.trim()
+            : null,
+        imageContentType:
+          typeof message.imageContentType === 'string' && message.imageContentType.trim()
+            ? message.imageContentType.trim()
+            : null,
+        imageFilename:
+          typeof message.imageFilename === 'string' && message.imageFilename.trim()
+            ? message.imageFilename.trim()
+            : null,
         avatarUrl:
           typeof message.avatarUrl === 'string' && message.avatarUrl.trim()
             ? message.avatarUrl.trim()
@@ -548,6 +687,7 @@ module.exports = {
   listUsers,
   getUserById,
   findUserByUsername,
+  findUserByEmail,
   findUserByCredentials,
   createUser,
   updateUser,

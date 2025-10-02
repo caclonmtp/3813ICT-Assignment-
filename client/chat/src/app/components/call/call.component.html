@@ -1,13 +1,31 @@
 <div class="call-overlay">
   <div class="call-card">
     <header class="call-header">
-      <button class="btn-back" (click)="backToChat()">← Back</button>
-      <div class="call-info">
-        <h2>{{ groupName || 'Call' }}<span *ngIf="channelName"> / #{{ channelName }}</span></h2>
-        <span class="call-host" *ngIf="callHost()">Host: {{ callHost() }}</span>
+      <div class="call-header-left">
+        <button class="btn-back" (click)="backToChat()">
+          <span aria-hidden="true">←</span>
+          <span class="sr-only">Back to chat</span>
+        </button>
+        <div class="call-meta">
+          <div class="call-badge">{{ groupInitial() }}</div>
+          <div class="call-meta-text">
+            <h1>
+              {{ groupName || 'Call' }}
+              <span *ngIf="channelName"> / #{{ channelName }}</span>
+            </h1>
+            <div class="call-meta-subtitle">
+              <span class="status-chip" [class.live]="inCall() || callActive()">
+                {{ callStatusLabel() }}
+              </span>
+              <span class="call-host" *ngIf="callHost()">Host · {{ callHost() }}</span>
+            </div>
+          </div>
+        </div>
       </div>
       <div class="call-actions">
-        <button class="btn-leave" (click)="leaveCall()" [disabled]="isCallLoading() && !inCall()">Leave</button>
+        <button class="btn-leave" (click)="leaveCall()" [disabled]="isCallLoading() && !inCall()">
+          End
+        </button>
       </div>
     </header>
 
@@ -16,76 +34,93 @@
         {{ callError() }}
       </div>
 
-      <div class="call-controls">
-        <button
-          class="btn-call start"
-          *ngIf="!inCall()"
-          (click)="startCall()"
-          [disabled]="isCallLoading()"
-        >
-          {{ isCallLoading() ? 'Connecting…' : 'Start Call' }}
-        </button>
-        <button
-          class="btn-call join"
-          *ngIf="!inCall() && callActive()"
-          (click)="joinCall()"
-          [disabled]="isCallLoading()"
-        >
-          {{ isCallLoading() ? 'Joining…' : 'Join Call' }}
-        </button>
-        <button
-          class="btn-pill"
-          *ngIf="inCall()"
-          (click)="toggleMic()"
-        >
-          {{ micMuted() ? 'Unmute' : 'Mute' }}
-        </button>
-        <button
-          class="btn-pill"
-          *ngIf="inCall()"
-          (click)="toggleCamera()"
-        >
-          {{ cameraOff() ? 'Start Video' : 'Stop Video' }}
-        </button>
-        <button class="btn-call share" (click)="toggleScreenShare()" [disabled]="!inCall()">
-          {{ isScreenSharing() ? 'Stop Sharing' : 'Share Screen' }}
-        </button>
-      </div>
+      <section class="call-stage" [class.empty]="!inCall()">
+        <div class="call-empty" *ngIf="!inCall()">
+          <div class="call-empty-icon">📞</div>
+          <h2>Ready when you are</h2>
+          <p>
+            Start a new session or join the call already in progress to collaborate with your team.
+          </p>
+        </div>
 
-      <div class="video-section" *ngIf="inCall()">
-        <div class="video-grid">
-          <div
-            class="video-tile local"
-            [class.video-off]="cameraOff()"
-            [class.audio-active]="isLocalSpeaking()"
-          >
-            <h4>
-              You
-              <span class="mute-indicator" *ngIf="micMuted()">🔇</span>
-            </h4>
-            <video [appMediaStream]="localStream()" muted autoplay playsinline></video>
-            <div class="video-placeholder" *ngIf="cameraOff()">Camera off</div>
-          </div>
-          <div class="video-tile share" *ngIf="isScreenSharing()">
-            <h4>Your Screen</h4>
-            <video [appMediaStream]="screenStream()" autoplay playsinline></video>
-          </div>
-          <div
-            class="video-tile"
-            *ngFor="let participant of remoteParticipants()"
-            [class.audio-active]="isParticipantSpeaking(participant.userId)"
-          >
-            <h4>
-              {{ participant.username }}
-              <span class="mute-indicator" *ngIf="isParticipantMuted(participant.userId)">🔇</span>
-            </h4>
-            <video [appMediaStream]="participant.stream" autoplay playsinline></video>
-            <div class="video-placeholder" *ngIf="!participant.stream">
-              Waiting for video…
+        <div class="video-section" *ngIf="inCall()">
+          <div class="video-grid">
+            <div
+              class="video-tile local"
+              [class.video-off]="cameraOff()"
+              [class.audio-active]="isLocalSpeaking()"
+            >
+              <div class="tile-header">
+                <span>You</span>
+                <span class="mute-indicator" *ngIf="micMuted()">🔇</span>
+              </div>
+              <video [appMediaStream]="localStream()" muted autoplay playsinline></video>
+              <div class="video-placeholder" *ngIf="cameraOff()">Camera off</div>
+            </div>
+
+            <div class="video-tile share" *ngIf="isScreenSharing()">
+              <div class="tile-header">Your Screen</div>
+              <video [appMediaStream]="screenStream()" autoplay playsinline></video>
+            </div>
+
+            <div
+              class="video-tile"
+              *ngFor="let participant of remoteParticipants()"
+              [class.audio-active]="isParticipantSpeaking(participant.userId)"
+            >
+              <div class="tile-header">
+                <span>{{ participant.username }}</span>
+                <span class="mute-indicator" *ngIf="isParticipantMuted(participant.userId)">🔇</span>
+              </div>
+              <video [appMediaStream]="participant.stream" autoplay playsinline></video>
+              <div class="video-placeholder" *ngIf="!participant.stream">
+                Waiting for video…
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </section>
+
+      <section class="call-control-bar">
+        <div class="control-group primary" *ngIf="!inCall()">
+          <button
+            class="control-pill start"
+            (click)="startCall()"
+            [disabled]="isCallLoading()"
+          >
+            <span class="icon" aria-hidden="true">▶</span>
+            {{ isCallLoading() ? 'Connecting…' : 'Start Call' }}
+          </button>
+          <button
+            class="control-pill join"
+            *ngIf="callActive()"
+            (click)="joinCall()"
+            [disabled]="isCallLoading()"
+          >
+            <span class="icon" aria-hidden="true">⇢</span>
+            {{ isCallLoading() ? 'Joining…' : 'Join Call' }}
+          </button>
+        </div>
+
+        <div class="control-group live" *ngIf="inCall()">
+          <button class="control-round" (click)="toggleMic()">
+            <span aria-hidden="true">{{ micMuted() ? '🔇' : '🎤' }}</span>
+            <span>{{ micMuted() ? 'Unmute' : 'Mute' }}</span>
+          </button>
+          <button class="control-round" (click)="toggleCamera()">
+            <span aria-hidden="true">{{ cameraOff() ? '🎥' : '📷' }}</span>
+            <span>{{ cameraOff() ? 'Start Video' : 'Stop Video' }}</span>
+          </button>
+          <button class="control-round" (click)="toggleScreenShare()" [class.active]="isScreenSharing()">
+            <span aria-hidden="true">🖥️</span>
+            <span>{{ isScreenSharing() ? 'Stop Share' : 'Share Screen' }}</span>
+          </button>
+        </div>
+
+        <div class="control-note" *ngIf="!inCall() && callActive()">
+          A live session is underway. Join to hop in instantly.
+        </div>
+      </section>
     </div>
   </div>
 </div>

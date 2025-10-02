@@ -1,140 +1,215 @@
-<div class="dashboard-container">
-    <nav class="navbar">
-        <div class="navbar-brand">
-            <h2>Chat Application</h2>
-        </div>
-        <div class="navbar-user">
-            <button *ngIf="currentUser" type="button" class="profile-icon-button" (click)="toggleProfileMenu($event)">
-                <ng-container *ngIf="mediaUrl(currentUser?.avatarUrl) as avatarUrl; else navInitial">
-                    <img class="avatar-image" [src]="avatarUrl" alt="Profile avatar">
-                </ng-container>
-                <ng-template #navInitial>
-                    <div class="avatar-initial">{{ currentUserInitial }}</div>
-                </ng-template>
-            </button>
-
-            <div class="profile-menu" *ngIf="profileMenuOpen" (click)="$event.stopPropagation()">
-                <h3>My Profile</h3>
-                <div class="avatar-preview">
-                    <ng-container *ngIf="mediaUrl(currentUser?.avatarUrl) as avatarUrl; else previewInitial">
-                        <img [src]="avatarUrl" alt="Profile avatar">
-                    </ng-container>
-                    <ng-template #previewInitial>
-                        <div class="avatar-initial large">{{ currentUserInitial }}</div>
-                    </ng-template>
-                    <button type="button" class="btn btn-avatar" (click)="openAvatarPicker($event)" [disabled]="avatarUploading">
-                        {{ avatarUploading ? 'Uploading…' : 'Change Avatar' }}
-                    </button>
-                    <input #avatarPicker type="file" class="sr-only" accept="image/*" (change)="handleAvatarSelected($event)">
-                </div>
-                <form (ngSubmit)="saveProfileChanges()">
-                    <label>
-                        Username
-                        <input type="text" [(ngModel)]="editableUser.username" name="profileUsername" required [disabled]="profileSaving || avatarUploading">
-                    </label>
-                    <label>
-                        Email
-                        <input type="email" [(ngModel)]="editableUser.email" name="profileEmail" required [disabled]="profileSaving">
-                    </label>
-                    <div class="profile-actions">
-                        <button type="submit" class="btn btn-save" [disabled]="profileSaving || avatarUploading">Save</button>
-                        <button type="button" class="btn btn-cancel" (click)="cancelProfileChanges($event)" [disabled]="profileSaving || avatarUploading">Cancel</button>
-                    </div>
-                </form>
-            </div>
-
-            <span class="username">Welcome, {{ currentUser?.username }}</span>
-            <div class="user-roles">
-                <span *ngFor="let role of currentUser?.roles" class="role-badge">
-                    {{ role }}
-                </span>
-            </div>
-            <div class="navbar-actions">
-                <button *ngIf="isSuperAdmin" (click)="goToAdmin()" class="btn btn-admin">
-                    Super Admin Panel
-                </button>
-                <button *ngIf="isGroupAdmin" (click)="goToGroupAdmin()" class="btn btn-admin">
-                    Group Admin Panel
-                </button>
-                <button (click)="logout()" class="btn btn-logout">Logout</button>
+<div class="dashboard-shell">
+    <header class="shell-header">
+        <div class="brand-area">
+            <div class="brand-mark">MC</div>
+            <div class="brand-copy">
+                <h1>Mean Chat</h1>
+                <p>Operate in real time with your teams across channels and calls.</p>
             </div>
         </div>
-    </nav>
 
-    <div class="dashboard-content">
-        <div class="sidebar">
-            <h3>My Groups</h3>
-            <div class="groups-list">
-                <div *ngFor="let group of groups" 
-                     class="group-item"
-                     [class.active]="selectedGroup?.id === group.id"
-                     (click)="selectGroup(group)"
-                     tabindex="0" role="button"
-                     (keydown.enter)="selectGroup(group)">
-                    <div class="group-item-avatar">
-                        <ng-container *ngIf="mediaUrl(group.avatarUrl) as groupAvatarUrl; else sidebarFallback">
-                            <img [src]="groupAvatarUrl" [alt]="group.name + ' avatar'">
+        <div class="header-right" *ngIf="currentUser">
+            <div class="user-summary">
+                <div class="profile-wrapper">
+                    <button type="button" class="avatar-trigger" (click)="toggleProfileMenu($event)">
+                        <ng-container *ngIf="mediaUrl(currentUser?.avatarUrl) as avatarUrl; else headerInitial">
+                            <img [src]="avatarUrl" alt="Profile avatar">
                         </ng-container>
-                        <ng-template #sidebarFallback>
-                            <span>{{ groupInitial(group) }}</span>
+                        <ng-template #headerInitial>
+                            <span>{{ currentUserInitial }}</span>
                         </ng-template>
-                    </div>
-                    <div class="group-item-info">
-                        <span class="group-item-name">{{ group.name }}</span>
-                        <span class="group-item-members">{{ group.members.length }} members</span>
+                    </button>
+
+                    <div class="profile-menu" *ngIf="profileMenuOpen" (click)="$event.stopPropagation()">
+                        <h3>My Profile</h3>
+                        <div class="avatar-preview">
+                            <ng-container *ngIf="mediaUrl(currentUser?.avatarUrl) as avatarUrl; else previewInitial">
+                                <img [src]="avatarUrl" alt="Profile avatar">
+                            </ng-container>
+                            <ng-template #previewInitial>
+                                <div class="avatar-initial large">{{ currentUserInitial }}</div>
+                            </ng-template>
+                            <button type="button" class="btn-avatar" (click)="openAvatarPicker($event)" [disabled]="avatarUploading">
+                                {{ avatarUploading ? 'Uploading…' : 'Change Avatar' }}
+                            </button>
+                            <input #avatarPicker type="file" class="sr-only" accept="image/*" (change)="handleAvatarSelected($event)">
+                        </div>
+                        <form (ngSubmit)="saveProfileChanges()">
+                            <div class="profile-roles" *ngIf="currentUser?.roles?.length">
+                                <span class="roles-label">Roles</span>
+                                <div class="roles-list">
+                                    <span *ngFor="let role of currentUser?.roles" class="role-chip">{{ formatRole(role) }}</span>
+                                </div>
+                            </div>
+                            <label>
+                                Username
+                                <input type="text" [(ngModel)]="editableUser.username" name="profileUsername" required [disabled]="profileSaving || avatarUploading">
+                            </label>
+                            <label>
+                                Email
+                                <input type="email" [(ngModel)]="editableUser.email" name="profileEmail" required [disabled]="profileSaving">
+                            </label>
+                            <div class="profile-actions">
+                                <button type="submit" class="btn-save" [disabled]="profileSaving || avatarUploading">Save</button>
+                                <button type="button" class="btn-cancel" (click)="cancelProfileChanges($event)" [disabled]="profileSaving || avatarUploading">Cancel</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
-                <div *ngIf="groups.length === 0" class="no-groups">
-                    <p>You're not a member of any groups yet.</p>
-                    <small>Ask a group admin to add you to a group.</small>
+                <div class="user-copy">
+                    <span class="greeting">Hi, {{ currentUser.username }} 👋</span>
+                    <span class="meta">{{ totalGroups }} groups · {{ totalChannels }} channels · {{ totalMembers }} teammates</span>
+                </div>
+            </div>
+
+            <div class="header-meta">
+                <div class="header-actions">
+                    <button *ngIf="isSuperAdmin" class="action-btn subtle" (click)="goToAdmin()">Super Admin</button>
+                    <button *ngIf="isGroupAdmin" class="action-btn subtle" (click)="goToGroupAdmin()">Group Admin</button>
+                    <button class="action-btn danger" (click)="logout()">Logout</button>
                 </div>
             </div>
         </div>
+    </header>
 
-        <div class="main-content">
-            <div *ngIf="selectedGroup" class="channels-section">
-                <h2>{{ selectedGroup.name }} - Channels</h2>
-                <div class="channels-grid">
-                    <div *ngFor="let channel of channels[selectedGroup.id]" 
-                         class="channel-card"
-                         (click)="enterChannel(selectedGroup.id, channel.id)"
-                         tabindex="0" role="button"
-                         (keydown.enter)="enterChannel(selectedGroup.id, channel.id)">
-                        <div class="channel-icon">#</div>
-                        <div class="channel-info">
-                            <h4>{{ channel.name }}</h4>
-                            <p>Click to enter channel</p>
+    <main class="shell-main" *ngIf="currentUser">
+        <section class="stats-grid">
+            <article class="stat-card">
+                <span class="stat-label">Active Groups</span>
+                <span class="stat-value">{{ totalGroups }}</span>
+                <p>Groups you’re collaborating in right now.</p>
+            </article>
+            <article class="stat-card">
+                <span class="stat-label">Channels Available</span>
+                <span class="stat-value">{{ totalChannels }}</span>
+                <p>Join a channel to view the latest activity.</p>
+            </article>
+            <article class="stat-card">
+                <span class="stat-label">Teammates</span>
+                <span class="stat-value">{{ totalMembers }}</span>
+                <p>Unique collaborators across your groups.</p>
+            </article>
+        </section>
+
+        <div class="content-grid">
+            <aside class="groups-panel">
+                <div class="panel-header">
+                    <div>
+                        <h2>My Groups</h2>
+                        <p>{{ groups.length ? 'Select a group to explore its channels.' : 'Waiting for your first group invite.' }}</p>
+                    </div>
+                </div>
+
+                <div class="groups-list" *ngIf="groups.length; else emptyGroups">
+                    <button
+                        *ngFor="let group of groups"
+                        type="button"
+                        class="group-card"
+                        [class.active]="selectedGroup?.id === group.id"
+                        (click)="selectGroup(group)"
+                    >
+                        <div class="group-avatar">
+                            <ng-container *ngIf="mediaUrl(group.avatarUrl) as groupAvatarUrl; else groupInitialFallback">
+                                <img [src]="groupAvatarUrl" [alt]="group.name + ' avatar'">
+                            </ng-container>
+                            <ng-template #groupInitialFallback>
+                                <span>{{ groupInitial(group) }}</span>
+                            </ng-template>
+                        </div>
+                        <div class="group-details">
+                            <span class="group-name">{{ group.name }}</span>
+                            <span class="group-meta">{{ group.members.length }} members · {{ channelCountFor(group) }} channels</span>
+                        </div>
+                        <span class="group-arrow" aria-hidden="true">→</span>
+                    </button>
+                </div>
+            </aside>
+
+            <section class="content-panel">
+                <ng-container *ngIf="selectedGroup as group; else emptyState">
+                    <div class="group-hero">
+                        <div class="group-hero-avatar">
+                            <ng-container *ngIf="mediaUrl(group.avatarUrl) as selectedGroupAvatar; else selectedFallback">
+                                <img [src]="selectedGroupAvatar" [alt]="group.name + ' avatar'">
+                            </ng-container>
+                            <ng-template #selectedFallback>
+                                <span>{{ groupInitial(group) }}</span>
+                            </ng-template>
+                        </div>
+                        <div class="group-hero-copy">
+                            <h2>{{ group.name }}</h2>
+                            <p>
+                                {{ group.members.length }} members · {{ group.admins.length }} admins · Created {{ group.createdAt | date:'mediumDate' }}
+                            </p>
+                        </div>
+                        <div class="group-hero-actions" *ngIf="isGroupAdmin || isSuperAdmin">
+                            <button class="action-btn outline" (click)="goToGroupAdmin()">Manage Group</button>
                         </div>
                     </div>
-                    <div *ngIf="!channels[selectedGroup.id] || channels[selectedGroup.id].length === 0" 
-                         class="no-channels">
-                        <p>No channels available in this group.</p>
-                        <small>Group admins can create channels.</small>
+
+                    <div class="channel-section">
+                        <div class="channel-section-header">
+                            <h3>Channels</h3>
+                            <span>{{ channelCountFor(group) }} total</span>
+                        </div>
+
+                        <div class="channel-grid" *ngIf="channels[group.id]?.length; else noChannels">
+                            <article
+                                *ngFor="let channel of channels[group.id]"
+                                class="channel-tile"
+                                (click)="enterChannel(group.id, channel.id)"
+                                tabindex="0"
+                                role="button"
+                                (keydown.enter)="enterChannel(group.id, channel.id)"
+                            >
+                                <div class="channel-icon">#</div>
+                                <div class="channel-copy">
+                                    <h4>{{ channel.name }}</h4>
+                                    <p>Jump in to catch up on the latest discussions.</p>
+                                </div>
+                                <span class="channel-arrow" aria-hidden="true">→</span>
+                            </article>
+                        </div>
+                        <ng-template #noChannels>
+                            <div class="channel-empty">
+                                <h4>No channels yet</h4>
+                                <p>Group admins can create channels to get conversations going.</p>
+                            </div>
+                        </ng-template>
                     </div>
-                </div>
-            </div>
-            
-            <div *ngIf="!selectedGroup" class="welcome-message">
-                <h2>Welcome to Chat Application</h2>
-                <p>Select a group from the sidebar to view available channels.</p>
-                <div class="features">
-                    <div class="feature">
-                        <i>💬</i>
-                        <h4>Real-time Chat</h4>
-                        <p>Communicate instantly with group members</p>
+                </ng-container>
+
+                <ng-template #emptyState>
+                    <div class="welcome-panel">
+                        <h2>Welcome to Mean Chat</h2>
+                        <p>Select a group on the left to browse channels, catch up on threads, and start calls.</p>
+                        <div class="welcome-grid">
+                            <div class="welcome-tile">
+                                <span class="tile-icon">💬</span>
+                                <h4>Real-time chat</h4>
+                                <p>Stay aligned with instant messaging in every channel.</p>
+                            </div>
+                            <div class="welcome-tile">
+                                <span class="tile-icon">📞</span>
+                                <h4>Instant calls</h4>
+                                <p>Spin up video calls and screen shares with one click.</p>
+                            </div>
+                            <div class="welcome-tile">
+                                <span class="tile-icon">🛡️</span>
+                                <h4>Secured roles</h4>
+                                <p>Granular permissions keep your workspaces protected.</p>
+                            </div>
+                        </div>
                     </div>
-                    <div class="feature">
-                        <i>👥</i>
-                        <h4>Group Management</h4>
-                        <p>Organize conversations in groups and channels</p>
+                </ng-template>
+
+                <ng-template #emptyGroups>
+                    <div class="empty-groups">
+                        <h3>No groups yet</h3>
+                        <p>Ask your administrator to add you to a group, or create one if you have permissions.</p>
                     </div>
-                    <div class="feature">
-                        <i>🔐</i>
-                        <h4>Role-based Access</h4>
-                        <p>Secure permissions system for users</p>
-                    </div>
-                </div>
-            </div>
+                </ng-template>
+            </section>
         </div>
-    </div>
+    </main>
 </div>

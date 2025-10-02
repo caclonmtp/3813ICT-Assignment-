@@ -239,4 +239,41 @@ export class DashboardComponent implements OnInit {
     get isGroupAdmin(): boolean {
         return this.authService.isGroupAdmin();
     }
+
+    get totalGroups(): number {
+        return this.groups.length;
+    }
+
+    get totalChannels(): number {
+        return Object.values(this.channels).reduce((count, list) => {
+            return count + (Array.isArray(list) ? list.length : 0);
+        }, 0);
+    }
+
+    get totalMembers(): number {
+        const memberIds = new Set<string>();
+        this.groups.forEach(group => {
+            if (group.createdBy) {
+                memberIds.add(group.createdBy);
+            }
+            (group.admins || []).forEach(id => memberIds.add(id));
+            (group.members || []).forEach(id => memberIds.add(id));
+        });
+        return memberIds.size;
+    }
+
+    channelCountFor(group: Group): number {
+        if (!group) {
+            return 0;
+        }
+        const list = this.channels[group.id];
+        return Array.isArray(list) ? list.length : 0;
+    }
+
+    formatRole(role: string): string {
+        return role
+            .split('-')
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+            .join(' ');
+    }
 }

@@ -86,4 +86,18 @@ export class LoginComponent {
         this.isRegistering = !this.isRegistering;
         this.error = '';
     }
+
+    switchToLogin(): void {
+        if (this.isRegistering) {
+            this.isRegistering = false;
+            this.error = '';
+        }
+    }
+
+    switchToRegister(): void {
+        if (!this.isRegistering) {
+            this.isRegistering = true;
+            this.error = '';
+        }
+    }
 }
