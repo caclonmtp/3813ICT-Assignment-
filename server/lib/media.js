@@ -3,11 +3,37 @@ const path = require('path');
 const crypto = require('crypto');
 const { UPLOAD_ROOT } = require('./uploads');
 
+const SECRET_FILE = path.join(UPLOAD_ROOT, '.media-secret');
+const DEFAULT_SECRET = 'mean-chat-development-secret';
+
 if (!process.env.MEAN_CHAT_MEDIA_SECRET) {
-  console.warn('[media] MEAN_CHAT_MEDIA_SECRET not set. Using development secret; do not use in production.');
+  let resolvedSecret = null;
+  try {
+    if (fs.existsSync(SECRET_FILE)) {
+      resolvedSecret = fs.readFileSync(SECRET_FILE, 'utf8').trim();
+    } else {
+      resolvedSecret = crypto.randomBytes(32).toString('hex');
+      fs.mkdirSync(path.dirname(SECRET_FILE), { recursive: true });
+      fs.writeFileSync(SECRET_FILE, resolvedSecret, { encoding: 'utf8', mode: 0o600 });
+    }
+  } catch (err) {
+    console.warn('[media] Failed to read/write media secret file:', err?.message || err);
+    resolvedSecret = DEFAULT_SECRET;
+  }
+
+  if (!resolvedSecret) {
+    resolvedSecret = DEFAULT_SECRET;
+  }
+
+  process.env.MEAN_CHAT_MEDIA_SECRET = resolvedSecret;
+  if (resolvedSecret === DEFAULT_SECRET) {
+    console.warn('[media] MEAN_CHAT_MEDIA_SECRET not set. Using development secret; do not use in production.');
+  } else {
+    console.info('[media] MEAN_CHAT_MEDIA_SECRET generated automatically for local use.');
+  }
 }
 
-const MEDIA_SECRET = process.env.MEAN_CHAT_MEDIA_SECRET || 'mean-chat-development-secret';
+const MEDIA_SECRET = process.env.MEAN_CHAT_MEDIA_SECRET || DEFAULT_SECRET;
 const HMAC_SECRET = crypto.createHash('sha256').update(`${MEDIA_SECRET}-sign`).digest();
 const ENCRYPTION_KEY = crypto.createHash('sha256').update(MEDIA_SECRET).digest();
 const MEDIA_DIR = path.join(UPLOAD_ROOT, 'secure');

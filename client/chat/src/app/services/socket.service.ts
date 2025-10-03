@@ -1,4 +1,4 @@
-import { Injectable, OnDestroy } from '@angular/core';
+import { Inject, Injectable, InjectionToken, OnDestroy } from '@angular/core';
 import { io, Socket } from 'socket.io-client';
 import { Observable, Subject } from 'rxjs';
 
@@ -47,6 +47,13 @@ export interface CallEndedEvent {
   endedBy?: { id: string; username: string } | null;
 }
 
+export type SocketFactory = typeof io;
+
+export const SOCKET_FACTORY = new InjectionToken<SocketFactory>('SOCKET_FACTORY', {
+  providedIn: 'root',
+  factory: () => io
+});
+
 export interface JoinChannelResponse {
   messages: ServerMessage[];
   channelMembers: ChannelPresenceEvent[];
@@ -60,6 +67,8 @@ export interface JoinChannelResponse {
 export class SocketService implements OnDestroy {
   private socket?: Socket;
   private currentUserId?: string;
+
+  constructor(@Inject(SOCKET_FACTORY) private readonly socketFactory: SocketFactory) {}
 
   private messageSubject = new Subject<ServerMessage>();
   private callJoinSubject = new Subject<CallUserEvent>();
@@ -114,7 +123,7 @@ export class SocketService implements OnDestroy {
     this.disconnect();
     this.currentUserId = userId;
 
-    this.socket = io('http://localhost:3000', {
+    this.socket = this.socketFactory('http://localhost:3000', {
       transports: ['websocket'],
       auth: { userId }
     });

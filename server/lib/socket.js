@@ -475,10 +475,27 @@ function initSocketServer(httpServer) {
   return ioInstance;
 }
 
+function shutdownSocketServer() {
+  if (!ioInstance) {
+    return;
+  }
+  try {
+    ioInstance.removeAllListeners();
+    ioInstance.close();
+  } catch (err) {
+    console.warn('Socket.io shutdown encountered an issue', err);
+  } finally {
+    ioInstance = null;
+  }
+  activeCalls.clear();
+  channelMembers.clear();
+}
+
 module.exports = {
   initSocketServer,
   getIo,
   emitNewMessage,
   channelRoom,
-  callRoom
+  callRoom,
+  shutdownSocketServer
 };

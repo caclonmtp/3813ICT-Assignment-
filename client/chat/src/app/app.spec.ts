@@ -1,23 +1,25 @@
 import { TestBed } from '@angular/core/testing';
-import { AppModule } from './app.module';
+import { RouterTestingModule } from '@angular/router/testing';
+import { AppComponent } from './app.component';
 
-describe('App', () => {
+describe('AppComponent', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [ AppModule],
+      imports: [RouterTestingModule, AppComponent]
     }).compileComponents();
   });
 
-  it('should create the app', () => {
-    const fixture = TestBed.createComponent(AppModule);
+  it('creates the root component', () => {
+    const fixture = TestBed.createComponent(AppComponent);
     const app = fixture.componentInstance;
     expect(app).toBeTruthy();
   });
 
-  it('should render title', () => {
-    const fixture = TestBed.createComponent(AppModule);
+  it('contains the toast and confirm outlets', () => {
+    const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
-    const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, chat');
+    const compiled: HTMLElement = fixture.nativeElement;
+    expect(compiled.querySelector('app-toasts')).not.toBeNull();
+    expect(compiled.querySelector('app-confirm')).not.toBeNull();
   });
 });

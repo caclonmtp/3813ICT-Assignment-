@@ -2,8 +2,8 @@ const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { initDb } = require('./lib/db');
-const { initSocketServer } = require('./lib/socket');
+const { initDb, closeDb } = require('./lib/db');
+const { initSocketServer, shutdownSocketServer } = require('./lib/socket');
 const { ensureUploadDirs } = require('./lib/uploads');
 
 const app = express();
@@ -49,8 +49,20 @@ async function start() {
   }
 }
 
+
+async function stop() {
+  shutdownSocketServer();
+  if (httpServer && httpServer.listening) {
+    await new Promise((resolve, reject) => {
+      httpServer.close(err => (err ? reject(err) : resolve()));
+    });
+  }
+  await closeDb().catch(() => {});
+  httpServer = null;
+}
+
 if (require.main === module) {
   start();
 }
 
-module.exports = { app, start };
+module.exports = { app, start, stop };

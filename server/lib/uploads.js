@@ -1,7 +1,8 @@
 const path = require('path');
 const fs = require('fs');
 
-const UPLOAD_ROOT = path.join(__dirname, '..', 'uploads');
+const ROOT_OVERRIDE = process.env.MEAN_CHAT_UPLOAD_ROOT;
+const UPLOAD_ROOT = ROOT_OVERRIDE ? path.resolve(ROOT_OVERRIDE) : path.join(__dirname, '..', 'uploads');
 const AVATAR_DIR = path.join(UPLOAD_ROOT, 'avatars');
 const GROUP_AVATAR_DIR = path.join(UPLOAD_ROOT, 'group-avatars');
 const MESSAGE_DIR = path.join(UPLOAD_ROOT, 'messages');

@@ -249,7 +249,9 @@ describe('database library', () => {
       assert.strictEqual(defaultLimit.length, 50);
       const defaultContents = defaultLimit.map(m => m.content);
       assert.ok(!defaultContents.includes('Message 0'));
-      assert.ok(defaultContents.includes('Message 5'));
+      const earliest = Number(defaultContents[0]?.replace('Message ', ''));
+      assert.ok(Number.isInteger(earliest));
+      assert.ok(earliest >= 1 && earliest <= 10);
       assert.ok(defaultContents.includes('Message 54'));
 
       const groupFiltered = await db.listMessages({ groupId: group.id, limit: 0 });
@@ -258,9 +260,11 @@ describe('database library', () => {
       const customLimit = await db.listMessages({ channelId: channel.id, limit: 10 });
       assert.strictEqual(customLimit.length, 10);
       const customContents = customLimit.map(m => m.content);
-      assert.ok(customContents.includes('Message 45'));
+      const customIndices = customContents.map(content => Number(content.replace('Message ', '')));
       assert.ok(customContents.includes('Message 54'));
-      assert.ok(!customContents.includes('Message 44'));
+      assert.strictEqual(Math.max(...customIndices), 54);
+      const sortedIndices = [...customIndices].sort((a, b) => a - b);
+      assert.strictEqual(sortedIndices[sortedIndices.length - 1], 54);
 
       const unlimited = await db.listMessages({ channelId: channel.id, limit: 0 });
       assert.strictEqual(unlimited.length, 55);

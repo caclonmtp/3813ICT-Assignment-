@@ -83,13 +83,74 @@
             ],
             "styles": [
               "src/styles.css"
-            ]
+            ],
+            "karmaConfig": "karma.conf.cjs"
+          }
+        },
+        "cypress-run": {
+          "builder": "@cypress/schematic:cypress",
+          "options": {
+            "devServerTarget": "chat:serve",
+            "watch": false,
+            "headless": true,
+            "browser": "firefox",
+            "configFile": "cypress.config.cjs"
+          },
+          "configurations": {
+            "production": {
+              "devServerTarget": "chat:serve:production",
+              "configFile": "cypress.config.cjs",
+              "browser": "firefox"
+            }
+          }
+        },
+        "cypress-open": {
+          "builder": "@cypress/schematic:cypress",
+          "options": {
+            "watch": true,
+            "headless": false,
+            "configFile": "cypress.config.cjs"
+          }
+        },
+        "ct": {
+          "builder": "@cypress/schematic:cypress",
+          "options": {
+            "devServerTarget": "chat:serve",
+            "watch": true,
+            "headless": false,
+            "testingType": "component"
+          },
+          "configurations": {
+            "development": {
+              "devServerTarget": "chat:serve:development"
+            }
+          }
+        },
+        "e2e": {
+          "builder": "@cypress/schematic:cypress",
+          "options": {
+            "devServerTarget": "chat:serve",
+            "watch": false,
+            "headless": true,
+            "browser": "firefox",
+            "configFile": "cypress.config.cjs"
+          },
+          "configurations": {
+            "production": {
+              "devServerTarget": "chat:serve:production",
+              "configFile": "cypress.config.cjs",
+              "browser": "firefox"
+            }
           }
         }
       }
     }
   },
   "cli": {
-    "analytics": "3bfdfc9a-f2df-4321-88e6-6683360ed234"
+    "analytics": "3bfdfc9a-f2df-4321-88e6-6683360ed234",
+    "schematicCollections": [
+      "@cypress/schematic",
+      "@schematics/angular"
+    ]
   }
 }

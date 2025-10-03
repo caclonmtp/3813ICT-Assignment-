@@ -163,17 +163,26 @@
                         <img *ngIf="message.avatarUrl" [src]="mediaUrl(message.avatarUrl)" [alt]="message.username + ' avatar'">
                         <span *ngIf="!message.avatarUrl">{{ message.username.charAt(0).toUpperCase() }}</span>
                     </div>
-                    <div class="message-content">
-                        <div class="message-header">
-                            <span class="message-author">{{ message.username }}</span>
-                            <span class="message-time">{{ formatTimestamp(message.timestamp) }}</span>
-                        </div>
-                        <div class="message-text" *ngIf="message.content">{{ message.content }}</div>
-                        <div class="message-image" *ngIf="message.imageUrl">
-                            <a [href]="mediaUrl(message.imageUrl)" target="_blank" rel="noopener">
-                                <img [src]="mediaUrl(message.imageUrl)" [alt]="'Image from ' + message.username" (load)="onMessageMediaLoad()">
-                            </a>
-                        </div>
+                    <div class="message-content" [class.system-content]="message.userId === 'system'">
+                        <ng-container *ngIf="message.userId === 'system'; else userMessage">
+                            <div class="system-pill">
+                                <span class="system-icon" aria-hidden="true">📞</span>
+                                <span class="system-text">{{ message.content }}</span>
+                            </div>
+                            <span class="system-time">{{ formatTimestamp(message.timestamp) }}</span>
+                        </ng-container>
+                        <ng-template #userMessage>
+                            <div class="message-header">
+                                <span class="message-author">{{ message.username }}</span>
+                                <span class="message-time">{{ formatTimestamp(message.timestamp) }}</span>
+                            </div>
+                            <div class="message-text" *ngIf="message.content">{{ message.content }}</div>
+                            <div class="message-image" *ngIf="message.imageUrl">
+                                <a [href]="mediaUrl(message.imageUrl)" target="_blank" rel="noopener">
+                                    <img [src]="mediaUrl(message.imageUrl)" [alt]="'Image from ' + message.username" (load)="onMessageMediaLoad()">
+                                </a>
+                            </div>
+                        </ng-template>
                     </div>
                 </div>
             </div>

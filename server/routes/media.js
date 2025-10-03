@@ -31,7 +31,7 @@ router.get('/:token', async (req, res, next) => {
     }
     res.send(buffer);
   } catch (err) {
-    if (err && (err.code === 'ENOENT' || err.message === 'Token expired')) {
+    if (err && (err.code === 'ENOENT' || err.message === 'Token expired' || err.message === 'Invalid signature')) {
       return res.status(404).json({ success: false, message: 'Media not found' });
     }
     next(err);

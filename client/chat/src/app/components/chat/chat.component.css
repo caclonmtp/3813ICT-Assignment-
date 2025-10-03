@@ -546,9 +546,50 @@
 
 .message.system-message {
   justify-content: center;
+  align-self: center;
   text-align: center;
-  background: rgba(248, 250, 255, 0.85);
+  background: rgba(248, 250, 255, 0.92);
   border-style: dashed;
+  border-color: rgba(99, 102, 241, 0.25);
+  color: #4b5563;
+  box-shadow: none;
+  max-width: 80%;
+}
+
+.message.system-message .message-content {
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+
+.message-content.system-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.system-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #312e81;
+  font-weight: 600;
+}
+
+.system-icon {
+  font-size: 16px;
+}
+
+.system-text {
+  font-size: 13px;
+}
+
+.system-time {
+  font-size: 11px;
   color: #6b7280;
 }
 
