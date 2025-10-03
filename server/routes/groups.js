@@ -57,6 +57,7 @@ const groupAvatarUpload = multer({
   }
 });
 
+// Removes any existing avatar sources for the supplied group, whether stored via media keys or the file system.
 async function removeGroupAvatar(group) {
   if (!group) return;
   if (group.avatarKey) {
@@ -76,9 +77,10 @@ async function removeGroupAvatar(group) {
   }
 }
 
+// All group endpoints require an authenticated user context.
 router.use(requireUser);
 
-// GET /api/groups
+// GET /api/groups returns the groups visible to the current user (all for super admins).
 router.get('/', async (req, res, next) => {
   try {
     const groupsRaw = isSuper(req.me) ? await listGroups() : await listGroupsForUser(req.me.id);
@@ -89,7 +91,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// GET /api/groups/user/:userId
+// GET /api/groups/user/:userId lists groups for a specific member; super admins bypass membership filtering.
 router.get('/user/:userId', async (req, res, next) => {
   try {
     const groups = await listGroupsForUser(req.params.userId, isSuper(req.me));
@@ -99,7 +101,7 @@ router.get('/user/:userId', async (req, res, next) => {
   }
 });
 
-// POST /api/groups
+// POST /api/groups creates a group owned by the current user when they have admin privileges.
 router.post('/', async (req, res, next) => {
   try {
     if (!isSuper(req.me) && !isGroupAdmin(req.me)) {
@@ -114,6 +116,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// POST /api/groups/:groupId/avatar uploads and normalises a new avatar for the target group.
 router.post('/:groupId/avatar', (req, res, next) => {
   groupAvatarUpload.single('avatar')(req, res, async err => {
     if (err) {
@@ -171,7 +174,7 @@ router.post('/:groupId/avatar', (req, res, next) => {
   });
 });
 
-// DELETE /api/groups/:groupId
+// DELETE /api/groups/:groupId removes a group when invoked by the owner or a super admin.
 router.delete('/:groupId', async (req, res, next) => {
   try {
     const group = await getGroupById(req.params.groupId);
@@ -187,7 +190,7 @@ router.delete('/:groupId', async (req, res, next) => {
   }
 });
 
-// POST /api/groups/:groupId/members
+// POST /api/groups/:groupId/members adds a member to the group when performed by an admin or super admin.
 router.post('/:groupId/members', async (req, res, next) => {
   try {
     const group = await getGroupById(req.params.groupId);
@@ -204,7 +207,7 @@ router.post('/:groupId/members', async (req, res, next) => {
   }
 });
 
-// DELETE /api/groups/:groupId/members/:userId
+// DELETE /api/groups/:groupId/members/:userId removes a member when invoked by a group admin or super admin.
 router.delete('/:groupId/members/:userId', async (req, res, next) => {
   try {
     const group = await getGroupById(req.params.groupId);
@@ -219,7 +222,7 @@ router.delete('/:groupId/members/:userId', async (req, res, next) => {
   }
 });
 
-// POST /api/groups/:groupId/channels/:channelId/ban
+// POST /api/groups/:groupId/channels/:channelId/ban appends a user to the banned list for the specific channel.
 router.post('/:groupId/channels/:channelId/ban', async (req, res, next) => {
   try {
     const group = await getGroupById(req.params.groupId);

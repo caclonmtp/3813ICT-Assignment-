@@ -14,14 +14,17 @@ const activeCalls = new Map();
 // Map of channelId -> Map<userId, { userId, username, avatarUrl }>
 const channelMembers = new Map();
 
+// Builds the Socket.IO room name for channel broadcasts.
 function channelRoom(channelId) {
   return `channel:${channelId}`;
 }
 
+// Builds the Socket.IO room name used for call signalling.
 function callRoom(channelId) {
   return `call:${channelId}`;
 }
 
+// Safely invokes an acknowledgement callback, swallowing consumer errors.
 function safeAck(ack, payload) {
   if (typeof ack === 'function') {
     try {
@@ -32,6 +35,7 @@ function safeAck(ack, payload) {
   }
 }
 
+// Validates a user's access to a channel and returns the channel/group pair.
 async function ensureChannelAccess({ channelId, groupId, userId }) {
   if (!channelId) {
     throw new Error('channelId required');
@@ -64,6 +68,7 @@ async function ensureChannelAccess({ channelId, groupId, userId }) {
   return { channel, group };
 }
 
+// Returns the initialised Socket.IO server instance.
 function getIo() {
   if (!ioInstance) {
     throw new Error('Socket.io not initialized');
@@ -71,6 +76,7 @@ function getIo() {
   return ioInstance;
 }
 
+// Broadcasts a newly persisted message to all listeners in the channel room.
 function emitNewMessage(message) {
   if (!ioInstance || !message || !message.channelId) {
     return;
@@ -79,6 +85,7 @@ function emitNewMessage(message) {
   ioInstance.to(channelRoom(message.channelId)).emit('chat:message', payload);
 }
 
+// Emits a call-related event to participants in the call room.
 function broadcastCallEvent(channelId, event, payload, exceptSocket) {
   if (!ioInstance) return;
   const room = callRoom(channelId);
@@ -89,6 +96,7 @@ function broadcastCallEvent(channelId, event, payload, exceptSocket) {
   }
 }
 
+// Emits a channel event to listeners in the channel room.
 function broadcastChannelEvent(channelId, event, payload, exceptSocket) {
   if (!ioInstance) return;
   const room = channelRoom(channelId);
@@ -99,6 +107,7 @@ function broadcastChannelEvent(channelId, event, payload, exceptSocket) {
   }
 }
 
+// Maps a user into the lightweight presence payload with media decoration.
 function toPresencePayload(user) {
   return {
     userId: user.id,
@@ -107,6 +116,7 @@ function toPresencePayload(user) {
   };
 }
 
+// Initialises the Socket.IO server singleton and registers middleware/handlers.
 function initSocketServer(httpServer) {
   if (ioInstance) {
     return ioInstance;
@@ -153,6 +163,7 @@ function initSocketServer(httpServer) {
   ioInstance.on('connection', socket => {
     const { user } = socket.data;
 
+    // Handles removal from a channel room and broadcasts presence updates as needed.
     const leaveChannel = channelId => {
       if (!channelId || !socket.data.joinedChannels.has(channelId)) {
         return { removed: false, members: null };
@@ -412,6 +423,7 @@ function initSocketServer(httpServer) {
     });
   });
 
+  // Handles a participant leaving a call, tidying state and generating events as required.
   async function handleCallLeave(socket, channelId) {
     if (!socket.data.callChannels.has(channelId)) {
       return { ended: false, endedBy: null };

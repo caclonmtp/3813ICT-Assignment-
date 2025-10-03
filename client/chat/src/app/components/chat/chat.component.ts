@@ -104,6 +104,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     private readonly notify: NotifyService
   ) {}
 
+  // Derives a display initial for the current group name.
   groupInitial(): string {
     if (this.groupName) {
       return this.groupName.charAt(0).toUpperCase();
@@ -111,14 +112,17 @@ export class ChatComponent implements OnInit, OnDestroy {
     return '#';
   }
 
+  // Provides two-way binding access to the new message input.
   get newMessageValue(): string {
     return this.newMessage();
   }
 
+  // Updates the reactive new message value from the template.
   set newMessageValue(value: string) {
     this.newMessage.set(value);
   }
 
+  // Establishes socket subscriptions and loads initial channel state.
   ngOnInit(): void {
     this.currentUser = this.authService.currentUserValue;
     if (!this.currentUser) {
@@ -157,6 +161,7 @@ export class ChatComponent implements OnInit, OnDestroy {
       .subscribe(event => this.handleChannelUserLeft(event));
   }
 
+  // Cleans up subscriptions, uploads, and socket memberships.
   ngOnDestroy(): void {
     this.clearPendingImage();
     this.destroy$.next();
@@ -170,28 +175,34 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Navigates back to the dashboard view.
   backToDashboard(): void {
     this.router.navigate(['/dashboard']);
   }
 
+  // Navigates to the group admin area.
   goToGroupAdmin(): void {
     this.router.navigate(['/group-admin']);
   }
 
+  // Toggles the member/info sidebar visibility.
   toggleInfoPanel(): void {
     this.showInfoPanel.update(current => !current);
   }
 
+  // Explicitly hides the member/info sidebar.
   closeInfoPanel(): void {
     this.showInfoPanel.set(false);
   }
 
+  // Routes to the call component as the initiator.
   startCall(): void {
     this.router.navigate(['/call', this.groupId, this.channelId], {
       queryParams: { mode: 'start', host: this.currentUser?.username || '' }
     });
   }
 
+  // Routes to the call component to join an in-progress call.
   joinCall(): void {
     this.stopCallTone();
     this.router.navigate(['/call', this.groupId, this.channelId], {
@@ -199,10 +210,12 @@ export class ChatComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Brings up the hidden file input for image attachments.
   openImagePicker(): void {
     this.imagePicker?.nativeElement?.click();
   }
 
+  // Normalises media URLs coming from messages or avatars.
   mediaUrl(url: string | null | undefined): string | null {
     if (!url) {
       return null;
@@ -219,6 +232,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     return `${this.mediaBaseUrl}/${url}`;
   }
 
+  // Formats message timestamps for display.
   formatTimestamp(timestamp: Date): string {
     const date = new Date(timestamp);
     return date.toLocaleString('en-US', {
@@ -230,6 +244,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Handles enter presses for quick send behaviour.
   handleKeyPress(event: Event): void {
     const keyboardEvent = event as KeyboardEvent;
     if (keyboardEvent.key === 'Enter' && !keyboardEvent.shiftKey) {
@@ -242,6 +257,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Clears any pending image attachment and releases object URLs.
   clearPendingImage(): void {
     const previewUrl = this.pendingImagePreviewUrl();
     if (previewUrl && typeof URL !== 'undefined') {
@@ -254,6 +270,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Sends either a text message or delegates to the image upload flow.
   async sendMessage(): Promise<void> {
     if (!this.currentUser) return;
     const hasImage = !!this.pendingImage();
@@ -288,6 +305,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Validates and stages an image selected via the composer.
   handleMessageImageSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input?.files && input.files.length ? input.files[0] : null;
@@ -314,10 +332,12 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Keeps the timeline pinned to the newest content when media loads.
   onMessageMediaLoad(): void {
     this.scrollMessagesToBottom();
   }
 
+  // Uploads the staged image (and optional text) to the server.
   private async sendImageMessage(): Promise<void> {
     const file = this.pendingImage();
     if (!this.currentUser || !file) {
@@ -360,6 +380,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Responds to route parameter changes by rejoining the appropriate channel.
   private async handleRouteChange(params: Params): Promise<void> {
     const newGroupId = params['groupId'];
     const newChannelId = params['channelId'];
@@ -425,6 +446,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.loadGroupMembers();
   }
 
+  // Inserts incoming chat messages into local state if they target this channel.
   private handleIncomingMessage(message: ServerMessage): void {
     if (!message || message.channelId !== this.channelId) {
       return;
@@ -438,6 +460,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.scrollMessagesToBottom();
   }
 
+  // Reacts to a call start event and surfaces notifications.
   private handleCallStarted(event: CallSessionEvent): void {
     if (!event || event.channelId !== this.channelId) {
       return;
@@ -452,6 +475,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.notifyIncomingCall(event.username || null);
   }
 
+  // Clears call state when the server signals completion.
   private handleCallEnded(event: CallEndedEvent): void {
     if (!event || event.channelId !== this.channelId) {
       return;
@@ -461,6 +485,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.stopCallTone();
   }
 
+  // Adds presence entries when other members join the channel.
   private handleChannelUserJoined(event: ChannelPresenceEvent): void {
     if (!event || event.channelId !== this.channelId) {
       return;
@@ -488,6 +513,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Removes presence entries when members leave the channel.
   private handleChannelUserLeft(event: ChannelPresenceEvent): void {
     if (!event || event.channelId !== this.channelId) {
       return;
@@ -507,12 +533,14 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Shows a toast and plays an alert tone for incoming calls.
   private notifyIncomingCall(hostname: string | null): void {
     const message = hostname ? `${hostname} started a call.` : 'A call just started in this channel.';
     this.notify.info(message);
     this.playCallTone();
   }
 
+  // Maps socket messages into the view model format.
   private normalizeMessage(message: ServerMessage): ChatMessage {
     return {
       id: message.id,
@@ -526,6 +554,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     };
   }
 
+  // Scrolls the message list to the most recent entry.
   private scrollMessagesToBottom(): void {
     setTimeout(() => {
       const container = document.querySelector('.messages-container');
@@ -535,6 +564,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     }, 50);
   }
 
+  // Fetches metadata for the active channel and group.
   private loadChannelInfo(): void {
     this.http
       .get<any>(`http://localhost:3000/api/channels/group/${this.groupId}`)
@@ -559,6 +589,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Loads the member list for the active group to populate the sidebar.
   private loadGroupMembers(): void {
     this.http.get<User[]>(`http://localhost:3000/api/users`).subscribe(users => {
       this.groupMembers = users.filter(user =>
@@ -567,6 +598,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Plays a repeating audio indicator for incoming calls.
   private playCallTone(): void {
     if (typeof window === 'undefined') {
       return;
@@ -596,6 +628,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     this.callToneInterval = window.setInterval(() => this.triggerCallTone(), 2500);
   }
 
+  // Plays a single tone burst used by the repeating call indicator.
   private triggerCallTone(): void {
     if (!this.audioCtx) {
       return;
@@ -627,6 +660,7 @@ export class ChatComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Stops any active call tone playback and clears timers.
   private stopCallTone(): void {
     if (this.callToneInterval !== null) {
       window.clearInterval(this.callToneInterval);

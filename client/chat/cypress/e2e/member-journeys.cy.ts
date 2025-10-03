@@ -1,5 +1,4 @@
-const API_BASE = 'http://localhost:3000/api';
-const APP_BASE = 'http://localhost:4200';
+import { API_BASE, APP_BASE } from '../support/constants';
 
 interface SeededUser {
   id: string;

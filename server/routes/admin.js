@@ -4,8 +4,10 @@ const { requireUser, isSuper } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Administrative endpoints require an authenticated user.
 router.use(requireUser);
 
+// GET /api/admin/export returns a snapshot of database entities; only super admins can access it.
 router.get('/export', async (req, res, next) => {
   try {
     if (!isSuper(req.me)) return res.status(403).json({ success: false, message: 'Super only' });
@@ -16,6 +18,7 @@ router.get('/export', async (req, res, next) => {
   }
 });
 
+// POST /api/admin/import replaces persisted data with the provided snapshot (super admin only).
 router.post('/import', async (req, res, next) => {
   try {
     if (!isSuper(req.me)) return res.status(403).json({ success: false, message: 'Super only' });

@@ -17,6 +17,8 @@ export class ConfirmComponent {
   }
 
   @HostListener('document:keydown.escape') onEsc() { this.confirm.cancel(); }
+  // Confirms the pending action.
   accept() { this.confirm.accept(); }
+  // Cancels the pending action.
   cancel() { this.confirm.cancel(); }
 }

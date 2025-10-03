@@ -47,12 +47,14 @@ export class GroupAdminComponent implements OnInit {
         private confirm: ConfirmService
     ) {}
 
+    // Loads the current user context and fetches initial data when mounted.
     ngOnInit(): void {
         this.currentUser = this.authService.currentUserValue;
         this.loadMyGroups();
         this.loadAllUsers();
     }
 
+    // Fetches groups managed by the current user (or all when super admin).
     loadMyGroups(): void {
         if (!this.currentUser) return;
 
@@ -74,6 +76,7 @@ export class GroupAdminComponent implements OnInit {
         });
     }
 
+    // Retrieves all users to populate membership pickers.
     loadAllUsers(): void {
         this.userService.getUsers().subscribe({
             next: (users) => {
@@ -83,11 +86,13 @@ export class GroupAdminComponent implements OnInit {
         });
     }
 
+    // Chooses a group to administer and loads its details.
     selectGroup(group: Group): void {
         this.selectedGroup = group;
         this.loadGroupDetails(group);
     }
 
+    // Fetches channels and member lists for the selected group.
     loadGroupDetails(group: Group): void {
         this.http.get<Channel[]>(`http://localhost:3000/api/channels/group/${group.id}`)
             .subscribe({
@@ -100,6 +105,7 @@ export class GroupAdminComponent implements OnInit {
         this.updateAvailableUsers();
     }
 
+    // Computes users that can be invited to the selected group.
     updateAvailableUsers(): void {
         if (this.selectedGroup) {
             this.availableUsers = this.allUsers.filter(u => 
@@ -108,6 +114,7 @@ export class GroupAdminComponent implements OnInit {
         }
     }
 
+    // Creates a new group owned by the current user after confirmation.
     async createGroup(): Promise<void> {
         if (!this.newGroupName.trim() || !this.currentUser) return;
         const ok = await this.confirm.ask(`Create group "${this.newGroupName.trim()}"?`, 'Confirm Create');
@@ -124,6 +131,7 @@ export class GroupAdminComponent implements OnInit {
             });
     }
 
+    // Creates a channel within the selected group after confirmation.
     async createChannel(): Promise<void> {
         if (!this.newChannelName.trim() || !this.selectedGroup || !this.currentUser) return;
         const ok = await this.confirm.ask(`Create channel "${this.newChannelName.trim()}" in ${this.selectedGroup.name}?`, 'Confirm Create');
@@ -143,6 +151,7 @@ export class GroupAdminComponent implements OnInit {
         });
     }
 
+    // Adds the specified user to the selected group through the API.
     async addMemberToGroup(userId: string): Promise<void> {
         if (!this.selectedGroup) return;
         const user = this.allUsers.find(u => u.id === userId);
@@ -159,6 +168,7 @@ export class GroupAdminComponent implements OnInit {
             });
     }
 
+    // Removes the specified user from the selected group after confirmation.
     async removeMemberFromGroup(userId: string): Promise<void> {
         if (!this.selectedGroup) return;
         const user = this.allUsers.find(u => u.id === userId);
@@ -174,6 +184,7 @@ export class GroupAdminComponent implements OnInit {
             });
     }
 
+    // Deletes a channel from the selected group when confirmed.
     async deleteChannel(channelId: string): Promise<void> {
         const ch = this.groupChannels.find(c => c.id === channelId);
         const ok = await this.confirm.ask(`Delete channel "${ch?.name}"? This cannot be undone.`, 'Confirm Delete');
@@ -188,6 +199,7 @@ export class GroupAdminComponent implements OnInit {
             });
     }
 
+    // Deletes a group and cascades the UI updates.
     async deleteGroup(groupId: string): Promise<void> {
         const g = this.myGroups.find(x => x.id === groupId);
         const ok = await this.confirm.ask(`Delete group "${g?.name}" and all its channels?`, 'Confirm Delete');
@@ -203,16 +215,19 @@ export class GroupAdminComponent implements OnInit {
             });
     }
 
+    // Indicates whether the current user may delete the given group.
     canDeleteGroup(group: Group): boolean {
         return group.createdBy === this.currentUser?.id || this.authService.isSuperAdmin();
     }
 
+    // Determines if the current user can manage the specified group.
     canManageGroup(group: Group): boolean {
         if (!this.currentUser) return false;
         const meId = this.currentUser.id;
         return this.authService.isSuperAdmin() || group.createdBy === meId || (group.admins || []).includes(meId);
     }
 
+    // Normalises media URLs for display.
     mediaUrl(url?: string | null): string | null {
         if (!url) return null;
         if (/^https?:\/\//i.test(url)) {
@@ -227,15 +242,18 @@ export class GroupAdminComponent implements OnInit {
         return `http://localhost:3000/${url}`;
     }
 
+    // Returns the initial to display for a group avatar placeholder.
     groupInitial(group: Group | null): string {
         if (!group?.name) return '#';
         return group.name.charAt(0).toUpperCase();
     }
 
+    // Triggers the file input for updating a group avatar.
     openGroupAvatarPicker(): void {
         this.groupAvatarPicker?.nativeElement?.click();
     }
 
+    // Uploads a new avatar for the selected group and refreshes it locally.
     async handleGroupAvatarSelected(event: Event): Promise<void> {
         if (!this.selectedGroup) return;
         const input = event.target as HTMLInputElement;
@@ -269,6 +287,7 @@ export class GroupAdminComponent implements OnInit {
         });
     }
 
+    // Applies a server-returned group update to local state.
     private applyUpdatedGroup(updated: Group): void {
         this.myGroups = this.myGroups.map(group => (group.id === updated.id ? { ...group, ...updated } : group));
         if (this.selectedGroup?.id === updated.id) {

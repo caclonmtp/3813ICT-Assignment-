@@ -26,6 +26,7 @@ const fsPromises = fs.promises;
 
 const router = express.Router();
 
+// Multer storage for user avatars, ensuring predictable filenames and safe extensions.
 const avatarStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     try {
@@ -43,6 +44,7 @@ const avatarStorage = multer.diskStorage({
   }
 });
 
+// Enforces avatar upload constraints (mime-type, size, storage).
 const avatarUpload = multer({
   storage: avatarStorage,
   limits: { fileSize: 5 * 1024 * 1024 },
@@ -55,6 +57,7 @@ const avatarUpload = multer({
   }
 });
 
+// Removes any currently associated avatar assets for a user to prevent orphaned files.
 async function removeExistingAvatar(user) {
   if (!user) return;
   if (user.avatarKey) {
@@ -76,10 +79,10 @@ async function removeExistingAvatar(user) {
   }
 }
 
-// All endpoints require authentication
+// All user endpoints require an authenticated caller.
 router.use(requireUser);
 
-// POST /api/users (super only)
+// POST /api/users provisions a new user; only super admins may invoke it.
 router.post('/', async (req, res, next) => {
   try {
     if (!isSuper(req.me)) {
@@ -131,7 +134,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// GET /api/users
+// GET /api/users returns the full user list sans passwords.
 router.get('/', async (req, res, next) => {
   try {
     const users = await listUsers();
@@ -142,7 +145,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// GET /api/users/:id
+// GET /api/users/:id retrieves a single user by id with media decoration.
 router.get('/:id', async (req, res, next) => {
   try {
     const user = await getUserById(req.params.id);
@@ -154,7 +157,7 @@ router.get('/:id', async (req, res, next) => {
   }
 });
 
-// PUT /api/users/:id
+// PUT /api/users/:id updates profile fields; users can edit themselves, super admins can edit anyone.
 router.put('/:id', async (req, res, next) => {
   try {
     if (!(isSuper(req.me) || req.me.id === req.params.id)) {
@@ -187,6 +190,7 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
+// POST /api/users/:id/avatar uploads and processes a square avatar image for the user.
 router.post('/:id/avatar', (req, res, next) => {
   avatarUpload.single('avatar')(req, res, async err => {
     if (err) {
@@ -239,7 +243,7 @@ router.post('/:id/avatar', (req, res, next) => {
   });
 });
 
-// PATCH /api/users/:id/roles (super only)
+// PATCH /api/users/:id/roles replaces the user's role set; restricted to super admins.
 router.patch('/:id/roles', async (req, res, next) => {
   try {
     if (!isSuper(req.me)) return res.status(403).json({ success: false, message: 'Super only' });
@@ -256,7 +260,7 @@ router.patch('/:id/roles', async (req, res, next) => {
   }
 });
 
-// POST /api/users/:id/promote (to group-admin, super only)
+// POST /api/users/:id/promote adds the group-admin role to the target user.
 router.post('/:id/promote', async (req, res, next) => {
   try {
     if (!isSuper(req.me)) return res.status(403).json({ success: false, message: 'Super only' });
@@ -269,7 +273,7 @@ router.post('/:id/promote', async (req, res, next) => {
   }
 });
 
-// DELETE /api/users/:id (super only)
+// DELETE /api/users/:id removes a user (and related assets) when initiated by a super admin.
 router.delete('/:id', async (req, res, next) => {
   try {
     if (!isSuper(req.me)) return res.status(403).json({ success: false, message: 'Super only' });

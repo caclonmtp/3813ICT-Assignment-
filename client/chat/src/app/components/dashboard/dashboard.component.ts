@@ -46,6 +46,7 @@ export class DashboardComponent implements OnInit {
         private notify: NotifyService
     ) {}
 
+    // Loads initial user context when the dashboard mounts.
     ngOnInit(): void {
         this.currentUser = this.authService.currentUserValue;
         if (this.currentUser) {
@@ -53,6 +54,7 @@ export class DashboardComponent implements OnInit {
         }
     }
 
+    // Normalises media URLs for display, accounting for relative paths.
     mediaUrl(url?: string | null): string | null {
         if (!url) return null;
         if (/^https?:\/\//i.test(url)) {
@@ -67,6 +69,7 @@ export class DashboardComponent implements OnInit {
         return `${this.mediaBaseUrl}/${url}`;
     }
 
+    // Toggles the profile dropdown and seeds editable fields when opened.
     toggleProfileMenu(event?: Event): void {
         event?.stopPropagation();
         if (!this.currentUser) {
@@ -81,21 +84,25 @@ export class DashboardComponent implements OnInit {
         }
     }
 
+    // Opens the hidden avatar file input.
     openAvatarPicker(event?: Event): void {
         event?.stopPropagation();
         this.avatarPicker?.nativeElement?.click();
     }
 
+    // Derives the initial letter for the current user's avatar fallback.
     get currentUserInitial(): string {
         const username = this.currentUser?.username;
         return username ? username.charAt(0).toUpperCase() : '';
     }
 
+    // Returns the initial character for a group's placeholder avatar.
     groupInitial(group: Group | null): string {
         const name = group?.name;
         return name ? name.charAt(0).toUpperCase() : '#';
     }
 
+    // Uploads a new profile avatar and refreshes the cached user profile.
     async handleAvatarSelected(event: Event): Promise<void> {
         if (!this.currentUser) {
             return;
@@ -145,6 +152,7 @@ export class DashboardComponent implements OnInit {
         }
     }
 
+    // Persists edits to the user's profile details.
     async saveProfileChanges(): Promise<void> {
         if (!this.currentUser) {
             return;
@@ -177,11 +185,13 @@ export class DashboardComponent implements OnInit {
         }
     }
 
+    // Closes the profile editor without saving.
     cancelProfileChanges(event?: Event): void {
         event?.stopPropagation();
         this.profileMenuOpen = false;
     }
 
+    // Fetches the groups the user belongs to and hydrates channel lists.
     loadUserGroups(): void {
         if (!this.currentUser) return;
         
@@ -195,6 +205,7 @@ export class DashboardComponent implements OnInit {
         });
     }
 
+    // Fetches channels for the specified group and caches them locally.
     loadChannels(groupId: string): void {
         this.http.get<Channel[]>(`http://localhost:3000/api/channels/group/${groupId}`)
             .subscribe({
@@ -204,26 +215,31 @@ export class DashboardComponent implements OnInit {
             });
     }
 
+    // Marks a group as selected in the UI.
     selectGroup(group: Group): void {
         this.selectedGroup = group;
     }
 
+    // Navigates into the chat view for the selected channel.
     enterChannel(groupId: string, channelId: string): void {
         this.router.navigate(['/chat', groupId, channelId]);
     }
 
+    // Opens the super-admin panel when authorised.
     goToAdmin(): void {
         if (this.authService.isSuperAdmin()) {
             this.router.navigate(['/admin']);
         }
     }
 
+    // Opens the group-admin workspace when authorised.
     goToGroupAdmin(): void {
         if (this.authService.isGroupAdmin()) {
             this.router.navigate(['/group-admin']);
         }
     }
 
+    // Confirms and performs a logout, then redirects to the login screen.
     async logout(): Promise<void> {
         const ok = await this.confirm.ask('Are you sure you want to logout?', 'Confirm Logout');
         if (!ok) return;
@@ -232,24 +248,29 @@ export class DashboardComponent implements OnInit {
         this.router.navigate(['/login']);
     }
 
+    // Indicates if the current user holds the super-admin role.
     get isSuperAdmin(): boolean {
         return this.authService.isSuperAdmin();
     }
 
+    // Indicates if the current user holds a group-admin or super-admin role.
     get isGroupAdmin(): boolean {
         return this.authService.isGroupAdmin();
     }
 
+    // Total group count for dashboard metrics.
     get totalGroups(): number {
         return this.groups.length;
     }
 
+    // Total channel count across all groups.
     get totalChannels(): number {
         return Object.values(this.channels).reduce((count, list) => {
             return count + (Array.isArray(list) ? list.length : 0);
         }, 0);
     }
 
+    // Distinct member count computed from all groups.
     get totalMembers(): number {
         const memberIds = new Set<string>();
         this.groups.forEach(group => {
@@ -262,6 +283,7 @@ export class DashboardComponent implements OnInit {
         return memberIds.size;
     }
 
+    // Returns the channel count for the provided group helper.
     channelCountFor(group: Group): number {
         if (!group) {
             return 0;
@@ -270,6 +292,7 @@ export class DashboardComponent implements OnInit {
         return Array.isArray(list) ? list.length : 0;
     }
 
+    // Nicely formats role identifiers for display.
     formatRole(role: string): string {
         return role
             .split('-')

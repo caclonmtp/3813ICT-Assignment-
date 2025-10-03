@@ -8,6 +8,7 @@ const { resolveFilePathFromUrl } = require('../lib/uploads');
 
 const router = express.Router();
 
+// GET /api/media/:token resolves signed media references and streams the associated bytes to the caller.
 router.get('/:token', async (req, res, next) => {
   try {
     const payload = decodeToken(req.params.token);

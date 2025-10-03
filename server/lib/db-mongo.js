@@ -1,10 +1,12 @@
 const { MongoClient } = require('mongodb');
 const crypto = require('crypto');
 
+// Resolves the MongoDB connection string from environment variables.
 function resolveMongoUri() {
   return process.env.MEAN_CHAT_MONGO_URI || 'mongodb://127.0.0.1:27017';
 }
 
+// Resolves the MongoDB database name from environment variables.
 function resolveMongoDb() {
   return process.env.MEAN_CHAT_MONGO_DB || 'mean_chat';
 }
@@ -18,6 +20,7 @@ const PBKDF2_ITERATIONS = Number(process.env.MEAN_CHAT_PBKDF2_ITERATIONS || 1200
 const PBKDF2_KEYLEN = 64;
 const PBKDF2_DIGEST = 'sha512';
 
+// Derives a PBKDF2 hash for the supplied password.
 function hashPassword(password) {
   if (typeof password !== 'string' || !password.trim()) {
     throw new Error('Password must be a non-empty string');
@@ -29,10 +32,12 @@ function hashPassword(password) {
   return `${PASSWORD_SIGNATURE}$${PBKDF2_ITERATIONS}$${salt}$${derived}`;
 }
 
+// Checks whether the stored password already uses the PBKDF2 signature.
 function isHashedPassword(password) {
   return typeof password === 'string' && password.startsWith(`${PASSWORD_SIGNATURE}$`);
 }
 
+// Validates a plaintext password against the stored hash (rehashing legacy values).
 function verifyPassword(password, stored) {
   if (typeof stored !== 'string' || !stored) {
     return false;
@@ -48,11 +53,13 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(derived, 'hex'));
 }
 
+// Generates a pseudo-random identifier prefixed as requested.
 function genId(prefix = '') {
   const rand = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
   return prefix + rand.slice(0, 16);
 }
 
+// Returns the current MongoDB database instance if initialised.
 function getDb() {
   if (!database) {
     throw new Error('Database not initialized');
@@ -60,6 +67,7 @@ function getDb() {
   return database;
 }
 
+// Initialises the MongoDB client, caches the database handle, and seeds defaults.
 async function initDb() {
   if (!initPromise) {
     initPromise = (async () => {
@@ -82,6 +90,7 @@ async function initDb() {
   return database;
 }
 
+// Creates required MongoDB indexes for collections.
 async function configureIndexes() {
   const db = getDb();
   await Promise.all([
@@ -106,6 +115,7 @@ async function configureIndexes() {
   ]);
 }
 
+// Ensures the default super administrator account exists with a hashed password.
 async function ensureDefaultSuperUser() {
   const db = getDb();
   const existing = await db.collection('users').findOne({ usernameLower: 'super' });
@@ -136,30 +146,35 @@ async function ensureDefaultSuperUser() {
   }
 }
 
+// Normalises a raw MongoDB user document for API consumption.
 function mapUser(doc) {
   if (!doc) return null;
   const { _id, usernameLower, emailLower, password, ...rest } = doc;
   return rest;
 }
 
+// Normalises a MongoDB group document.
 function mapGroup(doc) {
   if (!doc) return null;
   const { _id, ...rest } = doc;
   return rest;
 }
 
+// Normalises a MongoDB channel document.
 function mapChannel(doc) {
   if (!doc) return null;
   const { _id, ...rest } = doc;
   return rest;
 }
 
+// Normalises a MongoDB message document.
 function mapMessage(doc) {
   if (!doc) return null;
   const { _id, ...rest } = doc;
   return rest;
 }
 
+// Retrieves all users sorted by username.
 async function listUsers() {
   await initDb();
   const users = await getDb()
@@ -170,6 +185,7 @@ async function listUsers() {
   return users.map(mapUser);
 }
 
+// Fetches a single user by id.
 async function getUserById(id) {
   await initDb();
   const doc = await getDb()
@@ -178,6 +194,7 @@ async function getUserById(id) {
   return mapUser(doc);
 }
 
+// Looks up a user by lowercased username.
 async function findUserByUsername(usernameLower) {
   await initDb();
   const doc = await getDb()
@@ -186,6 +203,7 @@ async function findUserByUsername(usernameLower) {
   return mapUser(doc);
 }
 
+// Finds a user by lowercased email.
 async function findUserByEmail(emailLower) {
   if (!emailLower) return null;
   await initDb();
@@ -195,6 +213,7 @@ async function findUserByEmail(emailLower) {
   return mapUser(doc);
 }
 
+// Validates credentials and returns the mapped user, upgrading legacy passwords.
 async function findUserByCredentials(usernameLower, password) {
   await initDb();
   const userCollection = getDb().collection('users');
@@ -221,6 +240,7 @@ async function findUserByCredentials(usernameLower, password) {
   return mapUser(doc);
 }
 
+// Creates a user document with hashed password and defaults.
 async function createUser(user) {
   await initDb();
   const id = user.id || genId('u_');
@@ -245,6 +265,7 @@ async function createUser(user) {
   return getUserById(id);
 }
 
+// Applies updates to a user document, handling normalised fields.
 async function updateUser(id, updates) {
   await initDb();
   const payload = { ...updates };
@@ -282,6 +303,7 @@ async function updateUser(id, updates) {
   return getUserById(id);
 }
 
+// Replaces the user's roles array.
 async function setUserRoles(id, roles) {
   await initDb();
   await getDb()
@@ -290,6 +312,7 @@ async function setUserRoles(id, roles) {
   return getUserById(id);
 }
 
+// Adds a role to the user's role set.
 async function addRoleToUser(id, role) {
   await initDb();
   await getDb()
@@ -298,6 +321,7 @@ async function addRoleToUser(id, role) {
   return getUserById(id);
 }
 
+// Deletes a user and removes their memberships/admin roles.
 async function deleteUser(id, reassignedTo) {
   await initDb();
   const db = getDb();
@@ -333,6 +357,7 @@ async function deleteUser(id, reassignedTo) {
   return user;
 }
 
+// Lists all groups ordered by creation time.
 async function listGroups() {
   await initDb();
   const docs = await getDb()
@@ -343,6 +368,7 @@ async function listGroups() {
   return docs.map(mapGroup);
 }
 
+// Lists groups visible to a specific user (or all when flagged).
 async function listGroupsForUser(userId, includeAll = false) {
   if (includeAll) {
     return listGroups();
@@ -358,6 +384,7 @@ async function listGroupsForUser(userId, includeAll = false) {
   return docs.map(mapGroup);
 }
 
+// Fetches a group document by id.
 async function getGroupById(id) {
   await initDb();
   const doc = await getDb()
@@ -366,6 +393,7 @@ async function getGroupById(id) {
   return mapGroup(doc);
 }
 
+// Creates a new group seeded with the creator as admin/member.
 async function createGroup({ name, createdBy }) {
   await initDb();
   const id = genId('g_');
@@ -384,6 +412,7 @@ async function createGroup({ name, createdBy }) {
   return getGroupById(id);
 }
 
+// Updates a group's metadata and avatar keys.
 async function updateGroup(id, updates = {}) {
   await initDb();
   const payload = { ...updates };
@@ -407,6 +436,7 @@ async function updateGroup(id, updates = {}) {
   return getGroupById(id);
 }
 
+// Deletes a group and cascades channels and messages.
 async function deleteGroup(groupId) {
   await initDb();
   const db = getDb();
@@ -422,6 +452,7 @@ async function deleteGroup(groupId) {
   return group;
 }
 
+// Adds a user to a group's members array.
 async function addGroupMember(groupId, userId) {
   await initDb();
   await getDb()
@@ -430,6 +461,7 @@ async function addGroupMember(groupId, userId) {
   return getGroupById(groupId);
 }
 
+// Removes a user from a group's members/admin arrays.
 async function removeGroupMember(groupId, userId) {
   await initDb();
   await getDb()
@@ -443,6 +475,7 @@ async function removeGroupMember(groupId, userId) {
   return getGroupById(groupId);
 }
 
+// Lists channels for a group.
 async function listChannelsByGroupId(groupId) {
   await initDb();
   const docs = await getDb()
@@ -453,6 +486,7 @@ async function listChannelsByGroupId(groupId) {
   return docs.map(mapChannel);
 }
 
+// Fetches a channel by id.
 async function getChannelById(channelId) {
   await initDb();
   const doc = await getDb()
@@ -461,6 +495,7 @@ async function getChannelById(channelId) {
   return mapChannel(doc);
 }
 
+// Creates a channel record for a group.
 async function createChannel({ groupId, name, createdBy }) {
   await initDb();
   const id = genId('c_');
@@ -477,6 +512,7 @@ async function createChannel({ groupId, name, createdBy }) {
   return getChannelById(id);
 }
 
+// Deletes a channel and associated messages.
 async function deleteChannel(channelId) {
   await initDb();
   const db = getDb();
@@ -489,6 +525,7 @@ async function deleteChannel(channelId) {
   return channel;
 }
 
+// Replaces the channel's banned user list.
 async function updateChannelBans(channelId, bannedUserIds) {
   await initDb();
   await getDb()
@@ -497,6 +534,7 @@ async function updateChannelBans(channelId, bannedUserIds) {
   return getChannelById(channelId);
 }
 
+// Lists every channel across all groups.
 async function listAllChannels() {
   await initDb();
   const docs = await getDb()
@@ -507,6 +545,7 @@ async function listAllChannels() {
   return docs.map(mapChannel);
 }
 
+// Retrieves messages filtered by group/channel with optional limit trimming.
 async function listMessages({ groupId, channelId, limit = 50 } = {}) {
   await initDb();
   const filter = {};
@@ -525,6 +564,7 @@ async function listMessages({ groupId, channelId, limit = 50 } = {}) {
   return messages.map(mapMessage);
 }
 
+// Persists a message document with metadata.
 async function createMessage({
   groupId,
   channelId,
@@ -554,6 +594,7 @@ async function createMessage({
   return message;
 }
 
+// Builds an export snapshot of users, groups, channels, and messages.
 async function exportData() {
   await initDb();
   const [users, groups, channels, messages] = await Promise.all([
@@ -565,6 +606,7 @@ async function exportData() {
   return { users, groups, channels, messages };
 }
 
+// Replaces persisted data with a supplied snapshot, generating missing identifiers and hashes.
 async function importData(data) {
   if (!data || typeof data !== 'object') throw new Error('Invalid data payload');
   await initDb();
@@ -672,6 +714,7 @@ async function importData(data) {
   await ensureDefaultSuperUser();
 }
 
+// Closes the MongoDB client and clears cached handles.
 async function closeDb() {
   if (client) {
     await client.close();

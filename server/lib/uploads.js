@@ -7,17 +7,20 @@ const AVATAR_DIR = path.join(UPLOAD_ROOT, 'avatars');
 const GROUP_AVATAR_DIR = path.join(UPLOAD_ROOT, 'group-avatars');
 const MESSAGE_DIR = path.join(UPLOAD_ROOT, 'messages');
 
+// Creates the upload root and expected subdirectories if they do not exist.
 function ensureUploadDirs() {
   [UPLOAD_ROOT, AVATAR_DIR, GROUP_AVATAR_DIR, MESSAGE_DIR].forEach(dir => {
     fs.mkdirSync(dir, { recursive: true });
   });
 }
 
+// Converts an absolute upload path into the public /uploads URL form.
 function toPublicUrl(filePath) {
   const relative = path.relative(UPLOAD_ROOT, filePath).split(path.sep).join('/');
   return `/uploads/${relative}`;
 }
 
+// Resolves a /uploads URL back to a safe absolute filesystem path.
 function resolveFilePathFromUrl(url) {
   if (typeof url !== 'string' || !url.startsWith('/uploads/')) {
     return null;

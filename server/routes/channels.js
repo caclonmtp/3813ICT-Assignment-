@@ -10,9 +10,10 @@ const { requireUser, isSuper } = require('../middleware/auth');
 
 const router = express.Router();
 
+// Channel operations require an authenticated user context.
 router.use(requireUser);
 
-// GET /api/channels/group/:groupId
+// GET /api/channels/group/:groupId lists channels belonging to a group once the group exists.
 router.get('/group/:groupId', async (req, res, next) => {
   try {
     const group = await getGroupById(req.params.groupId);
@@ -24,7 +25,7 @@ router.get('/group/:groupId', async (req, res, next) => {
   }
 });
 
-// POST /api/channels
+// POST /api/channels creates a new channel within a group for authorised admins.
 router.post('/', async (req, res, next) => {
   try {
     const { name, groupId } = req.body || {};
@@ -43,7 +44,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
-// DELETE /api/channels/:channelId
+// DELETE /api/channels/:channelId removes a channel and cascades cleanup when triggered by group admins or super admins.
 router.delete('/:channelId', async (req, res, next) => {
   try {
     const channel = await getChannelById(req.params.channelId);

@@ -1,5 +1,4 @@
-const API_BASE = 'http://localhost:3000/api';
-const APP_BASE = 'http://localhost:4200';
+import { API_BASE, APP_BASE } from '../support/constants';
 
 interface SuperGroupSeed {
   group: { id: string; name: string };
@@ -158,6 +157,7 @@ describe('Administration Workflows', () => {
 
       cy.get('.admin-section').eq(0, { timeout: 10000 }).find('tbody tr').contains(username).should('exist');
       cy.get('@initialMemberCount').then(initial => {
+        const initialCount = Number(initial);
         cy.get('.admin-section', { timeout: 10000 })
           .eq(1)
           .find('tbody tr')
@@ -168,7 +168,7 @@ describe('Administration Workflows', () => {
           .invoke('text')
           .then(text => {
             const count = Number(text.replace(/[^0-9]/g, '')) || 0;
-            expect(count).to.eq((initial as number) + 1);
+            expect(count).to.eq(initialCount + 1);
           });
       });
     });

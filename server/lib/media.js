@@ -41,11 +41,13 @@ const TOKEN_VERSION = 'v1';
 
 fs.mkdirSync(MEDIA_DIR, { recursive: true });
 
+// Produces a unique storage key using timestamp and randomness.
 function generateKey(prefix) {
   const id = crypto.randomBytes(12).toString('hex');
   return `${prefix}-${Date.now()}-${id}`;
 }
 
+// Encrypts a buffer using AES-256-GCM with the media encryption key.
 function encryptBuffer(buffer) {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', ENCRYPTION_KEY, iv);
@@ -54,6 +56,7 @@ function encryptBuffer(buffer) {
   return Buffer.concat([iv, authTag, encrypted]);
 }
 
+// Decrypts a buffer previously produced by encryptBuffer.
 function decryptBuffer(raw) {
   const iv = raw.subarray(0, 12);
   const authTag = raw.subarray(12, 28);
@@ -63,6 +66,7 @@ function decryptBuffer(raw) {
   return Buffer.concat([decipher.update(encrypted), decipher.final()]);
 }
 
+// Encrypts and persists a buffer, returning metadata for later retrieval.
 async function saveBuffer(buffer, { prefix, contentType, filename } = {}) {
   const key = generateKey(prefix || 'media');
   const filePath = path.join(MEDIA_DIR, `${key}.enc`);
@@ -71,6 +75,7 @@ async function saveBuffer(buffer, { prefix, contentType, filename } = {}) {
   return { key, contentType, filename };
 }
 
+// Removes an encrypted media file associated with the given key.
 async function deleteKey(key) {
   if (!key) return;
   const filePath = path.join(MEDIA_DIR, `${key}.enc`);
@@ -81,6 +86,7 @@ async function deleteKey(key) {
   });
 }
 
+// Encodes a buffer using URL-safe base64.
 function base64UrlEncode(buffer) {
   return Buffer.from(buffer)
     .toString('base64')
@@ -89,6 +95,7 @@ function base64UrlEncode(buffer) {
     .replace(/\//g, '_');
 }
 
+// Decodes a URL-safe base64 string into a buffer.
 function base64UrlDecode(str) {
   const pad = 4 - (str.length % 4);
   const padded = str + (pad < 4 ? '='.repeat(pad) : '');
@@ -96,6 +103,7 @@ function base64UrlDecode(str) {
   return Buffer.from(b64, 'base64');
 }
 
+// Creates a signed media access token for the supplied payload.
 function createToken(payload) {
   const json = JSON.stringify(payload);
   const body = base64UrlEncode(json);
@@ -103,6 +111,7 @@ function createToken(payload) {
   return `${body}.${base64UrlEncode(signature)}`;
 }
 
+// Validates and parses a signed media token, enforcing expiry.
 function decodeToken(token) {
   const [body, signature] = token.split('.');
   if (!body || !signature) {
@@ -123,10 +132,12 @@ function decodeToken(token) {
   return payload;
 }
 
+// Determines whether a value already references an external URL.
 function isExternalUrl(value) {
   return typeof value === 'string' && (value.startsWith('http://') || value.startsWith('https://'));
 }
 
+// Generates a signed download URL or passes through existing links.
 function buildDownloadUrl(key, { filename, contentType, expiresInMs } = {}) {
   if (!key) {
     return null;
@@ -155,12 +166,14 @@ function buildDownloadUrl(key, { filename, contentType, expiresInMs } = {}) {
   return `/api/media/${createToken(payload)}`;
 }
 
+// Reads and decrypts the stored bytes for a media key.
 async function readDecryptedBuffer(key) {
   const filePath = path.join(MEDIA_DIR, `${key}.enc`);
   const raw = await fs.promises.readFile(filePath);
   return decryptBuffer(raw);
 }
 
+// Augments a user object with resolved avatar URLs.
 function applyUserMedia(user) {
   if (!user) return user;
   const url = buildDownloadUrl(user.avatarKey || user.avatarUrl, {
@@ -173,6 +186,7 @@ function applyUserMedia(user) {
   return user;
 }
 
+// Augments a group object with resolved avatar URLs.
 function applyGroupMedia(group) {
   if (!group) return group;
   const url = buildDownloadUrl(group.avatarKey || group.avatarUrl, {
@@ -185,6 +199,7 @@ function applyGroupMedia(group) {
   return group;
 }
 
+// Augments a message object with signed attachment and avatar URLs.
 function applyMessageMedia(message) {
   if (!message) return message;
   const imageUrl = buildDownloadUrl(message.imageKey || message.imageUrl, {

@@ -36,11 +36,13 @@ export class AdminComponent implements OnInit {
         private confirm: ConfirmService
     ) {}
 
+    // Loads users and groups when the admin panel initialises.
     ngOnInit(): void {
         this.loadUsers();
         this.loadGroups();
     }
 
+    // Fetches the current set of users for management.
     loadUsers(): void {
         this.userService.getUsers().subscribe({
             next: (users) => {
@@ -49,6 +51,7 @@ export class AdminComponent implements OnInit {
         });
     }
 
+    // Fetches every group to support membership management.
     loadGroups(): void {
         this.groupService.getGroups().subscribe({
             next: (groups) => {
@@ -57,20 +60,24 @@ export class AdminComponent implements OnInit {
         });
     }
 
+    // Highlights a user row and binds subsequent actions to it.
     selectUser(user: User): void {
         this.selectedUser = user;
     }
 
+    // Highlights a group row and toggles the auto-add checkbox.
     selectGroup(group: Group): void {
         this.selectedGroup = group;
         this.addToSelectedGroup = !!this.selectedGroup;
     }
 
+    // Opens the create-user dialog with reset state.
     openCreateUser(): void {
         this.resetCreateUserForm();
         this.showCreateUser = true;
     }
 
+    // Closes the create-user dialog if the save is not in progress.
     closeCreateUser(): void {
         if (this.createUserLoading) {
             return;
@@ -79,6 +86,7 @@ export class AdminComponent implements OnInit {
         this.resetCreateUserForm();
     }
 
+    // Submits a user creation request and optionally adds them to the selected group.
     createUser(): void {
         if (this.createUserLoading) {
             return;
@@ -137,6 +145,7 @@ export class AdminComponent implements OnInit {
             });
     }
 
+    // Finalises the user creation workflow and produces notifications.
     private finishUserCreation(user: User, addedToGroup: boolean): void {
         const groupName = this.selectedGroup?.name;
         this.createUserLoading = false;
@@ -151,6 +160,7 @@ export class AdminComponent implements OnInit {
         }
     }
 
+    // Resets create-user form fields and error state.
     private resetCreateUserForm(): void {
         this.newUserUsername = '';
         this.newUserEmail = '';
@@ -159,6 +169,7 @@ export class AdminComponent implements OnInit {
         this.addToSelectedGroup = !!this.selectedGroup;
     }
 
+    // Pulls a meaningful message from an HTTP error structure.
     private extractErrorMessage(error: unknown, fallback: string): string {
         if (error && typeof error === 'object') {
             const err = error as any;
@@ -170,6 +181,7 @@ export class AdminComponent implements OnInit {
         return fallback;
     }
 
+    // Promotes the selected user to group-admin after confirmation.
     async promoteToGroupAdmin(userId: string): Promise<void> {
         const user = this.users.find(u => u.id === userId);
         const ok = await this.confirm.ask(`Promote ${user?.username} to Group Admin?`, 'Confirm Promotion');
@@ -183,6 +195,7 @@ export class AdminComponent implements OnInit {
         });
     }
 
+    // Grants the super-admin role when confirmed.
     async promoteToSuperAdmin(userId: string): Promise<void> {
         const user = this.users.find(u => u.id === userId);
         const ok = await this.confirm.ask(`Promote ${user?.username} to Super Admin?`, 'Confirm Promotion');
@@ -199,6 +212,7 @@ export class AdminComponent implements OnInit {
         }
     }
 
+    // Deletes a user and refreshes the lists when confirmed.
     async deleteUser(userId: string): Promise<void> {
         const user = this.users.find(u => u.id === userId);
         const ok = await this.confirm.ask(`Delete user ${user?.username}? This cannot be undone.`, 'Confirm Delete');
@@ -213,6 +227,7 @@ export class AdminComponent implements OnInit {
         });
     }
 
+    // Removes a group and cascades the refresh after confirmation.
     async deleteGroup(groupId: string): Promise<void> {
         const g = this.groups.find(x => x.id === groupId);
         const ok = await this.confirm.ask(`Delete group "${g?.name}" and all its channels?`, 'Confirm Delete');
@@ -227,6 +242,7 @@ export class AdminComponent implements OnInit {
         });
     }
 
+    // Adds an existing user to a group through the admin panel.
     async addUserToGroup(userId: string, groupId: string): Promise<void> {
         const user = this.users.find(u => u.id === userId);
         const g = this.groups.find(x => x.id === groupId);
@@ -242,6 +258,7 @@ export class AdminComponent implements OnInit {
         });
     }
 
+    // Removes a user from a group via the admin panel.
     async removeUserFromGroup(userId: string, groupId: string): Promise<void> {
         const user = this.users.find(u => u.id === userId);
         const g = this.groups.find(x => x.id === groupId);

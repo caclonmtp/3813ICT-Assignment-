@@ -24,10 +24,12 @@ export class AuthService {
         this.currentUser = this.currentUserSubject.asObservable();
     }
 
+    // Returns the last cached user snapshot synchronously for guard checks.
     public get currentUserValue(): User | null {
         return this.currentUserSubject.value;
     }
 
+    // Performs a login request and caches the resulting user on success.
     login(username: string, password: string): Observable<any> {
         return this.http.post<any>(`${this.apiUrl}/auth/login`, { username, password })
             .pipe(tap(response => {
@@ -38,16 +40,19 @@ export class AuthService {
             }));
     }
 
+    // Issues a registration request; caller may prompt the user to log in afterwards.
     register(username: string, email: string, password: string): Observable<any> {
         // Do not auto-login after register; let user return to login screen
         return this.http.post<any>(`${this.apiUrl}/auth/register`, { username, email, password });
     }
 
+    // Clears cached user state both in memory and storage.
     logout(): void {
         this.storageService.removeItem('currentUser');
         this.currentUserSubject.next(null);
     }
 
+    // Replaces the cached user with a new snapshot.
     setCurrentUser(user: User): void {
         if (!user) {
             return;
@@ -56,6 +61,7 @@ export class AuthService {
         this.currentUserSubject.next(user);
     }
 
+    // Applies a partial update to the current user and persists it.
     mergeCurrentUser(partial: Partial<User>): User | null {
         const current = this.currentUserSubject.value;
         if (!current) {
@@ -67,10 +73,12 @@ export class AuthService {
         return updated;
     }
 
+    // Convenience helper for role-based checks.
     isSuperAdmin(): boolean {
         return this.currentUserValue?.roles.includes('super-admin') || false;
     }
 
+    // Determines if the current user can access group admin features.
     isGroupAdmin(): boolean {
         return this.currentUserValue?.roles.includes('group-admin') || 
                this.currentUserValue?.roles.includes('super-admin') || false;

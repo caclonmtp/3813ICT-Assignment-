@@ -79,38 +79,47 @@ export class SocketService implements OnDestroy {
   private channelUserJoinedSubject = new Subject<ChannelPresenceEvent>();
   private channelUserLeftSubject = new Subject<ChannelPresenceEvent>();
 
+  // Stream of chat messages emitted by the server.
   get messages$(): Observable<ServerMessage> {
     return this.messageSubject.asObservable();
   }
 
+  // Stream of participants joining a call in the active channel.
   get callUserJoined$(): Observable<CallUserEvent> {
     return this.callJoinSubject.asObservable();
   }
 
+  // Stream of participants leaving a call in the active channel.
   get callUserLeft$(): Observable<CallUserEvent> {
     return this.callLeaveSubject.asObservable();
   }
 
+  // Stream of WebRTC signalling messages for the current call.
   get callSignal$(): Observable<CallSignalEvent> {
     return this.callSignalSubject.asObservable();
   }
 
+  // Emits when a call session begins in the subscribed channel.
   get callStarted$(): Observable<CallSessionEvent> {
     return this.callStartedSubject.asObservable();
   }
 
+  // Emits when a call session ends.
   get callEnded$(): Observable<CallEndedEvent> {
     return this.callEndedSubject.asObservable();
   }
 
+  // Stream of channel presence join events.
   get channelUserJoined$(): Observable<ChannelPresenceEvent> {
     return this.channelUserJoinedSubject.asObservable();
   }
 
+  // Stream of channel presence leave events.
   get channelUserLeft$(): Observable<ChannelPresenceEvent> {
     return this.channelUserLeftSubject.asObservable();
   }
 
+  // Ensures an authenticated socket connection exists for the supplied user.
   ensureConnection(userId: string): void {
     if (!userId) {
       throw new Error('User id required for socket connection');
@@ -131,6 +140,7 @@ export class SocketService implements OnDestroy {
     this.registerHandlers();
   }
 
+  // Subscribes to server-sent events and routes them through Subjects.
   private registerHandlers(): void {
     if (!this.socket) return;
 
@@ -171,6 +181,7 @@ export class SocketService implements OnDestroy {
     });
   }
 
+  // Requests channel membership and resolves initial state payloads.
   async joinChannel(groupId: string, channelId: string): Promise<JoinChannelResponse> {
     const response = await this.emitWithAck<{
       success?: boolean;
@@ -205,11 +216,13 @@ export class SocketService implements OnDestroy {
     };
   }
 
+  // Informs the server that the user is leaving the channel room.
   leaveChannel(channelId: string): void {
     if (!this.socket) return;
     this.socket.emit('leaveChannel', { channelId });
   }
 
+  // Emits a chat message via the socket layer with ack semantics.
   async sendMessage(groupId: string, channelId: string, content: string): Promise<void> {
     const response = await this.emitWithAck<{ success?: boolean; message?: any; error?: string }>(
       'chat:message',
@@ -220,6 +233,7 @@ export class SocketService implements OnDestroy {
     }
   }
 
+  // Requests to join an active call and returns current participants.
   async joinCall(groupId: string, channelId: string): Promise<{ participants: string[] }> {
     const response = await this.emitWithAck<{ success?: boolean; participants?: string[]; message?: string }>(
       'call:join',
@@ -231,6 +245,7 @@ export class SocketService implements OnDestroy {
     return { participants: response?.participants || [] };
   }
 
+  // Signals that the user is leaving the active call.
   async leaveCall(channelId: string): Promise<{ success?: boolean; callEnded?: boolean }> {
     if (!this.socket) {
       return { success: false };
@@ -241,11 +256,13 @@ export class SocketService implements OnDestroy {
     );
   }
 
+  // Forwards WebRTC negotiation payloads to the server.
   sendCallSignal(channelId: string, type: string, data: any): void {
     if (!this.socket) return;
     this.socket.emit('call:signal', { channelId, type, data });
   }
 
+  // Tears down the active socket connection and resets state.
   disconnect(): void {
     if (this.socket) {
       this.socket.removeAllListeners();
@@ -255,6 +272,7 @@ export class SocketService implements OnDestroy {
     this.currentUserId = undefined;
   }
 
+  // Emits an event and resolves with the acknowledgement payload or rejects on failure.
   private emitWithAck<T>(event: string, payload: any): Promise<T> {
     if (!this.socket) {
       return Promise.reject(new Error('Socket not connected'));
@@ -279,6 +297,7 @@ export class SocketService implements OnDestroy {
     });
   }
 
+  // Angular lifecycle hook to ensure the socket disconnects with the service.
   ngOnDestroy(): void {
     this.disconnect();
   }

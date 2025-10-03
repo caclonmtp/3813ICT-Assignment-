@@ -9,6 +9,7 @@ const { applyUserMedia } = require('../lib/media');
 
 const router = express.Router();
 
+// POST /api/auth/login validates a username/password and returns the safe user payload.
 router.post('/login', async (req, res, next) => {
   try {
     const { username, password } = req.body || {};
@@ -28,6 +29,7 @@ router.post('/login', async (req, res, next) => {
   }
 });
 
+// POST /api/auth/register provisions a new basic user after checking username/email uniqueness.
 router.post('/register', async (req, res, next) => {
   try {
     const { username, email, password } = req.body || {};

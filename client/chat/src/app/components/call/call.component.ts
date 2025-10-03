@@ -74,6 +74,7 @@ export class CallComponent implements OnInit, OnDestroy {
     private readonly http: HttpClient
   ) {}
 
+  // Initialises socket subscriptions and evaluates query params.
   ngOnInit(): void {
     this.currentUser = this.authService.currentUserValue;
     if (!this.currentUser) {
@@ -112,6 +113,7 @@ export class CallComponent implements OnInit, OnDestroy {
       .subscribe(event => this.handleCallEnded(event));
   }
 
+  // Cleans up streams and socket state when the view is destroyed.
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
@@ -119,6 +121,7 @@ export class CallComponent implements OnInit, OnDestroy {
     this.stopMonitoringAll();
   }
 
+  // Responds to router parameter changes and joins/starts calls accordingly.
   private async handleRouteChange(params: Params): Promise<void> {
     const newGroupId = params['groupId'];
     const newChannelId = params['channelId'];
@@ -151,6 +154,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Starts a new call as host after ensuring media support.
   async startCall(): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) {
       this.callError.set('Video calling is not supported in this browser.');
@@ -160,6 +164,7 @@ export class CallComponent implements OnInit, OnDestroy {
     await this.enterCall(true);
   }
 
+  // Joins an existing call after validating media support.
   async joinCall(): Promise<void> {
     if (!navigator.mediaDevices?.getUserMedia) {
       this.callError.set('Video calling is not supported in this browser.');
@@ -169,6 +174,7 @@ export class CallComponent implements OnInit, OnDestroy {
     await this.enterCall(false);
   }
 
+  // Provides a fallback initial for group avatars.
   groupInitial(): string {
     if (this.groupName) {
       return this.groupName.charAt(0).toUpperCase();
@@ -176,6 +182,7 @@ export class CallComponent implements OnInit, OnDestroy {
     return '#';
   }
 
+  // Human-readable status label for the current call state.
   callStatusLabel(): string {
     if (this.inCall()) {
       return 'In Call';
@@ -189,10 +196,12 @@ export class CallComponent implements OnInit, OnDestroy {
     return 'Ready';
   }
 
+  // Leaves the active call and returns to the chat view.
   async leaveCall(): Promise<void> {
     await this.endCall(true, true);
   }
 
+  // Toggles the local microphone track on/off.
   toggleMic(): void {
     const stream = this.localStream();
     if (!stream) {
@@ -215,6 +224,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Toggles the local camera track on/off.
   toggleCamera(): void {
     const stream = this.localStream();
     if (!stream) {
@@ -234,6 +244,7 @@ export class CallComponent implements OnInit, OnDestroy {
     this.monitorStreamLevel(this.LOCAL_PARTICIPANT_ID, stream);
   }
 
+  // Starts or stops screen sharing depending on current state.
   async toggleScreenShare(): Promise<void> {
     if (!this.inCall()) {
       this.callError.set('Join the call before sharing your screen.');
@@ -263,10 +274,12 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Navigates back to the chat view without altering call state.
   backToChat(): void {
     this.router.navigate(['/chat', this.groupId, this.channelId]);
   }
 
+  // Performs the handshake required to join a call and attach local media.
   private async enterCall(asHost: boolean): Promise<void> {
     if (this.inCall() || this.isCallLoading()) {
       return;
@@ -305,6 +318,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Tears down call state, media, and peer connections.
   private async endCall(showToast: boolean, navigateBack: boolean): Promise<void> {
     if (this.inCall() && this.channelId) {
       try {
@@ -353,6 +367,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Ensures a peer connection exists when another participant joins.
   private handleCallUserJoined(event: CallUserEvent): void {
     if (!this.inCall() || event.channelId !== this.channelId || !this.currentUser) {
       return;
@@ -364,6 +379,7 @@ export class CallComponent implements OnInit, OnDestroy {
     void this.createAndSendOffer(event.userId);
   }
 
+  // Removes peer state when other participants leave.
   private handleCallUserLeft(event: CallUserEvent): void {
     if (event.channelId !== this.channelId) {
       return;
@@ -371,6 +387,7 @@ export class CallComponent implements OnInit, OnDestroy {
     this.removeRemoteParticipant(event.userId);
   }
 
+  // Processes WebRTC signalling messages (offer/answer/ICE).
   private async handleCallSignal(event: CallSignalEvent): Promise<void> {
     if (!this.inCall() || event.channelId !== this.channelId || !this.currentUser) {
       return;
@@ -398,6 +415,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Updates local state when the server reports a call start.
   private handleCallStarted(event: CallSessionEvent): void {
     if (!event || event.channelId !== this.channelId) {
       return;
@@ -408,6 +426,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Updates local state and returns to chat when the server reports call end.
   private handleCallEnded(event: { channelId: string }): void {
     if (!event || event.channelId !== this.channelId) {
       return;
@@ -420,6 +439,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Creates or retrieves the peer connection for the specified user.
   private ensurePeerConnection(userId: string, username?: string): RTCPeerConnection {
     let pc = this.peerConnections.get(userId);
     if (!pc) {
@@ -460,6 +480,7 @@ export class CallComponent implements OnInit, OnDestroy {
     return pc;
   }
 
+  // Creates or updates the remote participant record.
   private ensureRemoteParticipant(userId: string, username?: string): RemoteParticipant {
     let participant = this.remoteParticipantsMap.get(userId);
     if (!participant) {
@@ -477,10 +498,12 @@ export class CallComponent implements OnInit, OnDestroy {
     return participant;
   }
 
+  // Pushes the latest remote participant list to the template signal.
   private updateRemoteParticipants(): void {
     this.remoteParticipants.set(Array.from(this.remoteParticipantsMap.values()));
   }
 
+  // Cleans up peer state and media for a departing participant.
   private removeRemoteParticipant(userId: string): void {
     const pc = this.peerConnections.get(userId);
     if (pc) {
@@ -505,12 +528,14 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Adds local media tracks to every active peer connection.
   private addLocalTracksToPeers(): void {
     const stream = this.localStream();
     if (!stream) return;
     this.peerConnections.forEach(pc => this.addLocalTracksToPeer(pc));
   }
 
+  // Ensures all local tracks are present on a given peer connection.
   private addLocalTracksToPeer(pc: RTCPeerConnection): void {
     const stream = this.localStream();
     if (!stream) {
@@ -524,6 +549,7 @@ export class CallComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Replaces the outbound video track across all peer connections.
   private replaceVideoTrack(track: MediaStreamTrack): void {
     this.peerConnections.forEach(pc => {
       const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video');
@@ -535,6 +561,7 @@ export class CallComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Stops screen sharing and optionally restores the camera track.
   private stopScreenShare(restoreCamera = true): void {
     const screen = this.screenStream();
     if (!screen) return;
@@ -549,6 +576,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Stops local media tracks and clears associated monitoring.
   private cleanupLocalStream(): void {
     const stream = this.localStream();
     if (stream) {
@@ -558,6 +586,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Monitors audio levels to drive speaking indicators.
   private monitorStreamLevel(id: string, stream: MediaStream): void {
     const AudioCtor = window.AudioContext || (window as any).webkitAudioContext;
     if (!AudioCtor) {
@@ -612,6 +641,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Stops monitoring a specific participant's audio levels.
   private stopMonitoring(id: string): void {
     const entry = this.analyserNodes.get(id);
     if (!entry) {
@@ -627,6 +657,7 @@ export class CallComponent implements OnInit, OnDestroy {
     this.setSpeaking(id, false);
   }
 
+  // Removes all audio analysers and closes the audio context.
   private stopMonitoringAll(): void {
     Array.from(this.analyserNodes.keys()).forEach(id => this.stopMonitoring(id));
     if (this.audioCtx && this.audioCtx.state !== 'closed') {
@@ -636,6 +667,7 @@ export class CallComponent implements OnInit, OnDestroy {
     this.speakingParticipants.set(new Set());
   }
 
+  // Updates the reactive set tracking who is currently speaking.
   private setSpeaking(id: string, speaking: boolean): void {
     this.speakingParticipants.update(current => {
       const next = new Set(current);
@@ -648,6 +680,7 @@ export class CallComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Determines whether any track in the collection remains enabled.
   private tracksEnabled(tracks: MediaStreamTrack[]): boolean {
     if (!tracks.length) {
       return false;
@@ -655,6 +688,7 @@ export class CallComponent implements OnInit, OnDestroy {
     return tracks.some(track => track.enabled);
   }
 
+  // Returns whether all audio tracks for a remote participant are muted.
   isParticipantMuted(userId: string): boolean {
     const stream = this.remoteParticipantsMap.get(userId)?.stream;
     if (!stream) {
@@ -667,10 +701,12 @@ export class CallComponent implements OnInit, OnDestroy {
     return audioTracks.every(track => !track.enabled);
   }
 
+  // Checks if the participant is currently flagged as speaking.
   isParticipantSpeaking(userId: string): boolean {
     return this.speakingParticipants().has(userId);
   }
 
+  // Accepts a remote offer and responds with an answer.
   private async handleOffer(remoteUserId: string, sdp: RTCSessionDescriptionInit, username?: string): Promise<void> {
     const pc = this.ensurePeerConnection(remoteUserId, username);
     await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -682,6 +718,7 @@ export class CallComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Applies a remote answer to an existing peer connection.
   private async handleAnswer(remoteUserId: string, sdp: RTCSessionDescriptionInit): Promise<void> {
     const pc = this.peerConnections.get(remoteUserId);
     if (!pc) {
@@ -690,6 +727,7 @@ export class CallComponent implements OnInit, OnDestroy {
     await pc.setRemoteDescription(new RTCSessionDescription(sdp));
   }
 
+  // Adds an ICE candidate to the relevant peer connection.
   private async handleIceCandidate(remoteUserId: string, candidate: RTCIceCandidateInit): Promise<void> {
     const pc = this.peerConnections.get(remoteUserId);
     if (!pc) {
@@ -702,6 +740,7 @@ export class CallComponent implements OnInit, OnDestroy {
     }
   }
 
+  // Creates an offer for a remote participant and sends it via sockets.
   private createAndSendOffer(remoteUserId: string): Promise<void> {
     const pc = this.peerConnections.get(remoteUserId);
     if (!pc) {
@@ -722,6 +761,7 @@ export class CallComponent implements OnInit, OnDestroy {
       });
   }
 
+  // Loads metadata for the current channel and group.
   private loadChannelInfo(): void {
     this.http
       .get<any>(`http://localhost:3000/api/channels/group/${this.groupId}`)
@@ -741,6 +781,7 @@ export class CallComponent implements OnInit, OnDestroy {
     });
   }
 
+  // Attempts to resolve a friendly display name for a user id.
   private lookupDisplayName(userId: string): string {
     const member = this.group?.members?.includes(userId)
       ? this.groupMembersCache(userId)
@@ -752,6 +793,7 @@ export class CallComponent implements OnInit, OnDestroy {
     return member ?? `User ${userId.slice(-4)}`;
   }
 
+  // Looks up cached group member names for display fallback.
   private groupMembersCache(userId: string): string | null {
     if (!this.group || !Array.isArray(this.group.members)) {
       return null;

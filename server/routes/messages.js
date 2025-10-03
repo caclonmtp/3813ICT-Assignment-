@@ -16,6 +16,7 @@ const media = require('../lib/media');
 const router = express.Router();
 const fsPromises = fs.promises;
 
+// Multer storage engine that normalises filenames and stores message uploads under the message directory.
 const messageStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     try {
@@ -33,6 +34,7 @@ const messageStorage = multer.diskStorage({
   }
 });
 
+// Configures upload validation for message imagery (size, mime-type, storage).
 const messageUpload = multer({
   storage: messageStorage,
   limits: { fileSize: 8 * 1024 * 1024 },
@@ -45,8 +47,10 @@ const messageUpload = multer({
   }
 });
 
+// Message routes require an authenticated user context.
 router.use(requireUser);
 
+// GET /api/messages fetches channel or group message history with media decoration.
 router.get('/', async (req, res, next) => {
   try {
     const { groupId, channelId } = req.query;
@@ -58,6 +62,7 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// POST /api/messages persists a text-only message and emits it to channel subscribers.
 router.post('/', async (req, res, next) => {
   try {
     const { groupId, channelId, content } = req.body || {};
@@ -94,6 +99,7 @@ router.post('/', async (req, res, next) => {
   }
 });
 
+// POST /api/messages/upload handles multipart submissions for message imagery and optional text content.
 router.post('/upload', (req, res, next) => {
   messageUpload.single('image')(req, res, async err => {
     if (err) {

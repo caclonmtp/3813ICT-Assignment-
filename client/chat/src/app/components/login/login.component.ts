@@ -37,6 +37,7 @@ export class LoginComponent {
         });
     }
 
+    // Handles login form submission and navigates on success.
     onLogin(): void {
         if (this.loginForm.invalid) {
             return;
@@ -57,6 +58,7 @@ export class LoginComponent {
         });
     }
 
+    // Handles registration form submission and resets UI on success.
     onRegister(): void {
         if (this.registerForm.invalid) {
             return;
@@ -82,11 +84,13 @@ export class LoginComponent {
         });
     }
 
+    // Switches between login and registration forms.
     toggleMode(): void {
         this.isRegistering = !this.isRegistering;
         this.error = '';
     }
 
+    // Explicitly returns the UI to the login form.
     switchToLogin(): void {
         if (this.isRegistering) {
             this.isRegistering = false;
@@ -94,6 +98,7 @@ export class LoginComponent {
         }
     }
 
+    // Explicitly switches the UI to the registration form.
     switchToRegister(): void {
         if (!this.isRegistering) {
             this.isRegistering = true;

@@ -15,5 +15,6 @@ export class ToastsComponent {
   constructor(private notify: NotifyService) {
     this.toasts$ = this.notify.toasts$;
   }
+  // Removes a toast when the close button is clicked.
   dismiss(id: string) { this.notify.dismiss(id); }
 }
