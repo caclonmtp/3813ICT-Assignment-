@@ -195,6 +195,26 @@ This layered structure keeps components declarative, pushes side effects to serv
 
 Environment variables (`MEAN_CHAT_MONGO_URI`, `MEAN_CHAT_DB_PROVIDER`, `MEAN_CHAT_UPLOAD_ROOT`, `MEAN_CHAT_MEDIA_SECRET`, etc.) act as global configuration on the server. Changing them affects DB connections, upload paths, and media token secrets without altering code; Angular configuration reads API endpoints from service classes currently targeting `http://localhost:3000/api`.
 
+## Real-Time Collaboration Highlights
+
+### Video Chatting & Screen Sharing
+
+- `client/chat/src/app/components/call/call.component.ts` keeps the full WebRTC pipeline on the client, using Angular `signal`/`computed` state to coordinate call lifecycles, audio-level analysis, and the `toggleScreenShare()` bridge to `navigator.mediaDevices.getDisplayMedia`.
+- `client/chat/src/app/components/call/call.component.html` renders host badges, mute indicators, a dedicated screen-share tile, and hot-swappable local/remote `<video>` elements that receive live `MediaStream` objects via `client/chat/src/app/directives/media-stream.directive.ts`.
+- `server/lib/socket.js` enforces channel membership with `ensureChannelAccess`, maintains per-channel call registries, and emits `call:*` events that `SocketService` fans out to the UI so participants join/leave instantly without polling.
+
+### Angular Signals & Animations
+
+- `client/chat/src/app/components/chat/chat.component.ts` and `client/chat/src/app/components/call/call.component.ts` lean on Angular signals for view-model state (`messages`, `callActive`, `speakingParticipants`), computed guards (e.g., `disableSend`, `isScreenSharing`), and mutation helpers that keep the templates reactive without manual change detection.
+- New chat messages animate into view through the `trigger('messageFade', …)` definition in `client/chat/src/app/components/chat/chat.component.ts`, while the call surface uses structural directives bound to signals to cross-fade between lobby, live tiles, and control palettes.
+- Shared services such as `client/chat/src/app/services/socket.service.ts` pair RxJS streams with the signal-based components, giving a clean boundary between transport events and declarative UI reactions.
+
+### Backend Storage: Efficiency vs Security
+
+- `server/lib/db-mongo.js` reuses a singleton `MongoClient` with configurable pooling (`MEAN_CHAT_MONGO_MAX_POOL`), primes compound indexes for high-volume queries, and stores credentials as PBKDF2 hashes validated with `crypto.timingSafeEqual`.
+- Encrypted media at rest lives under `server/lib/media.js`, which derives AES-256-GCM keys from `MEAN_CHAT_MEDIA_SECRET`, rotates per-install secrets when missing, and issues signed download tokens so the UI can stream avatars and attachments without exposing raw file paths.
+- Request paths such as `server/routes/messages.js` and the socket gateway (`server/lib/socket.js`) double-check group membership, ban lists, and file constraints, balancing fast channel lookups against strict access control before data ever hits MongoDB.
+
 ## Development Notes
 
 1. **Setup**
